@@ -102,6 +102,7 @@ const TerminalForum = () => {
   const [currentInput, setCurrentInput] = useState('');
   const [history, setHistory] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [selectedTopic, setSelectedTopic] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [currentTheme, setCurrentTheme] = useState('matrix');
@@ -357,13 +358,14 @@ const TerminalForum = () => {
         const topicId = parseInt(args[0]);
         const topic = topics.find(t => t.id === topicId);
         if (topic) {
-          addToHistory(cmd, 
+          addToHistory(cmd,
             `Topic #${topic.id}: ${topic.title}\n` +
             `Author: ${topic.author}\n` +
             `Posted: ${topic.timestamp}\n` +
             `${'='.repeat(50)}\n\n` +
             `${topic.content}`
           );
+          setSelectedTopic(topic);
         } else {
           addToHistory(cmd, `Topic #${topicId} not found`, true);
           isError = true;
@@ -436,7 +438,12 @@ const TerminalForum = () => {
         break;
 
       case 'exit':
-        addToHistory(cmd, 'Thanks for visiting Terminal Forum! Goodbye.');
+        if (selectedTopic) {
+          setSelectedTopic(null);
+          addToHistory(cmd, 'Closed article viewer.');
+        } else {
+          addToHistory(cmd, 'Thanks for visiting Terminal Forum! Goodbye.');
+        }
         break;
 
       default:
@@ -482,13 +489,13 @@ const TerminalForum = () => {
   }
 
   return (
-    <div 
-      className={`h-screen ${theme.bg} ${theme.primary} font-mono flex flex-col overflow-hidden`}
+    <div
+      className={`h-screen ${theme.bg} ${theme.primary} font-mono flex flex-col md:flex-row overflow-hidden`}
       onClick={() => inputRef.current?.focus()}
     >
-      <div 
+      <div
         ref={terminalRef}
-        className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-green-600 scrollbar-track-black"
+        className="md:w-1/2 flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-green-600 scrollbar-track-black"
       >
         <pre className="whitespace-pre-wrap text-sm leading-tight mb-4">
           {bootText}
@@ -520,6 +527,24 @@ const TerminalForum = () => {
           />
           <div className={`w-2 h-4 ${theme.cursor} animate-pulse ml-1`}></div>
         </div>
+      </div>
+
+      <div className="w-full md:w-1/2 border-t md:border-t-0 md:border-l border-green-700 p-4 overflow-y-auto">
+        {selectedTopic ? (
+          <div>
+            <h2 className={`${theme.accent} text-lg mb-2`}>{selectedTopic.title}</h2>
+            <div className={`${theme.secondary} mb-2`}>
+              {`by ${selectedTopic.author} (${selectedTopic.timestamp})`}
+            </div>
+            <pre className="whitespace-pre-wrap text-sm">
+              {selectedTopic.content}
+            </pre>
+          </div>
+        ) : (
+          <div className={theme.secondary}>
+            No article selected. Use <span className={theme.accent}>read [id]</span> to open a topic.
+          </div>
+        )}
       </div>
     </div>
   );
