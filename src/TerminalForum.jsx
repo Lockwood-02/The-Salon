@@ -102,10 +102,89 @@ const TerminalForum = () => {
   const [currentInput, setCurrentInput] = useState('');
   const [history, setHistory] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-  //const [isTyping, setIsTyping] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [currentTheme, setCurrentTheme] = useState('matrix');
   const inputRef = useRef(null);
   const terminalRef = useRef(null);
+
+  // Color themes
+  const themes = {
+    matrix: {
+      name: 'Matrix Green',
+      primary: 'text-green-400',
+      secondary: 'text-green-300',
+      accent: 'text-green-500',
+      error: 'text-red-400',
+      bg: 'bg-black',
+      cursor: 'bg-green-400'
+    },
+    amber: {
+      name: 'Amber Classic',
+      primary: 'text-amber-400',
+      secondary: 'text-amber-300',
+      accent: 'text-amber-500',
+      error: 'text-red-400',
+      bg: 'bg-black',
+      cursor: 'bg-amber-400'
+    },
+    cyan: {
+      name: 'Cyan Blue',
+      primary: 'text-cyan-400',
+      secondary: 'text-cyan-300',
+      accent: 'text-cyan-500',
+      error: 'text-red-400',
+      bg: 'bg-black',
+      cursor: 'bg-cyan-400'
+    },
+    purple: {
+      name: 'Purple Haze',
+      primary: 'text-purple-400',
+      secondary: 'text-purple-300',
+      accent: 'text-purple-500',
+      error: 'text-red-400',
+      bg: 'bg-black',
+      cursor: 'bg-purple-400'
+    },
+    orange: {
+      name: 'Orange Fire',
+      primary: 'text-orange-400',
+      secondary: 'text-orange-300',
+      accent: 'text-orange-500',
+      error: 'text-red-400',
+      bg: 'bg-black',
+      cursor: 'bg-orange-400'
+    },
+    lime: {
+      name: 'Lime Glow',
+      primary: 'text-lime-400',
+      secondary: 'text-lime-300',
+      accent: 'text-lime-500',
+      error: 'text-red-400',
+      bg: 'bg-black',
+      cursor: 'bg-lime-400'
+    },
+    pink: {
+      name: 'Pink Neon',
+      primary: 'text-pink-400',
+      secondary: 'text-pink-300',
+      accent: 'text-pink-500',
+      error: 'text-red-400',
+      bg: 'bg-black',
+      cursor: 'bg-pink-400'
+    },
+    white: {
+      name: 'Retro White',
+      primary: 'text-gray-100',
+      secondary: 'text-gray-200',
+      accent: 'text-white',
+      error: 'text-red-400',
+      bg: 'bg-black',
+      cursor: 'bg-gray-100'
+    }
+  };
+
+  const theme = themes[currentTheme];
 
   // Initialize sound effects
   const { playKeypress, playBoot, playError, playSuccess } = useTerminalSounds();
@@ -220,6 +299,8 @@ const TerminalForum = () => {
           '  logout        - Logout from the system\n' +
           '  whoami        - Show current user\n' +
           '  sound [on|off] - Toggle sound effects\n' +
+          '  color [theme]  - Change terminal color theme\n' +
+          '  themes         - List available color themes\n' +
           '  clear         - Clear terminal history\n' +
           '  exit          - Exit the terminal'
         );
@@ -236,6 +317,28 @@ const TerminalForum = () => {
         } else {
           addToHistory(cmd, `Sound is currently ${soundEnabled ? 'ON' : 'OFF'}\nUsage: sound [on|off]`);
         }
+        break;
+
+      case 'color':
+        if (!args[0]) {
+          addToHistory(cmd, `Current theme: ${theme.name}\nUsage: color [theme_name]\nType "themes" to see available options`);
+        } else {
+          const newTheme = args[0].toLowerCase();
+          if (themes[newTheme]) {
+            setCurrentTheme(newTheme);
+            addToHistory(cmd, `Color theme changed to: ${themes[newTheme].name}`);
+          } else {
+            addToHistory(cmd, `Theme "${args[0]}" not found. Type "themes" to see available options`, true);
+            isError = true;
+          }
+        }
+        break;
+
+      case 'themes':
+        const themeList = Object.entries(themes)
+          .map(([key, theme]) => `  ${key.padEnd(8)} - ${theme.name}`)
+          .join('\n');
+        addToHistory(cmd, `Available Color Themes:\n${themeList}\n\nUsage: color [theme_name]`);
         break;
 
       case 'topics':
@@ -369,18 +472,18 @@ const TerminalForum = () => {
 
   if (!bootComplete) {
     return (
-      <div className="h-screen bg-black text-green-400 font-mono p-4 overflow-hidden">
+      <div className={`h-screen ${theme.bg} ${theme.primary} font-mono p-4 overflow-hidden`}>
         <pre className="whitespace-pre-wrap text-sm leading-tight">
           {bootText}
         </pre>
-        <div className="inline-block w-2 h-4 bg-green-400 animate-pulse ml-1"></div>
+        <div className={`inline-block w-2 h-4 ${theme.cursor} animate-pulse ml-1`}></div>
       </div>
     );
   }
 
   return (
     <div 
-      className="h-screen bg-black text-green-400 font-mono flex flex-col overflow-hidden"
+      className={`h-screen ${theme.bg} ${theme.primary} font-mono flex flex-col overflow-hidden`}
       onClick={() => inputRef.current?.focus()}
     >
       <div 
@@ -393,29 +496,29 @@ const TerminalForum = () => {
         
         {history.map((entry, i) => (
           <div key={i} className="mb-2">
-            <div className="text-green-300">
-              <span className="text-green-500">{getPrompt()}</span>
+            <div className={theme.secondary}>
+              <span className={theme.accent}>{getPrompt()}</span>
               {entry.command}
             </div>
-            <pre className={`whitespace-pre-wrap text-sm mt-1 ${entry.isError ? 'text-red-400' : 'text-green-400'}`}>
+            <pre className={`whitespace-pre-wrap text-sm mt-1 ${entry.isError ? theme.error : theme.primary}`}>
               {entry.output}
             </pre>
           </div>
         ))}
         
         <div className="flex items-center">
-          <span className="text-green-500">{getPrompt()}</span>
+          <span className={theme.accent}>{getPrompt()}</span>
           <input
             ref={inputRef}
             type="text"
             value={currentInput}
             onChange={(e) => setCurrentInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            className="bg-transparent border-none outline-none text-green-400 flex-1 font-mono"
+            className={`bg-transparent border-none outline-none ${theme.primary} flex-1 font-mono`}
             autoFocus
             spellCheck={false}
           />
-          <div className="w-2 h-4 bg-green-400 animate-pulse ml-1"></div>
+          <div className={`w-2 h-4 ${theme.cursor} animate-pulse ml-1`}></div>
         </div>
       </div>
     </div>
