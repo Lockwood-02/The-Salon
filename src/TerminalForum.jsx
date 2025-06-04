@@ -5,7 +5,7 @@ const useTerminalSounds = () => {
   const audioContext = useRef(null);
 
   const initAudio = () => {
-    if (!audioContext.current) {
+    if (!audioContext.current && typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) {
       audioContext.current = new (window.AudioContext || window.webkitAudioContext)();
     }
   };
@@ -13,6 +13,7 @@ const useTerminalSounds = () => {
   const playKeypress = () => {
     initAudio();
     const ctx = audioContext.current;
+    if (!ctx) return;
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
 
@@ -32,6 +33,7 @@ const useTerminalSounds = () => {
   const playBoot = () => {
     initAudio();
     const ctx = audioContext.current;
+    if (!ctx) return;
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
 
@@ -52,6 +54,7 @@ const useTerminalSounds = () => {
   const playError = () => {
     initAudio();
     const ctx = audioContext.current;
+    if (!ctx) return;
     
     for (let i = 0; i < 2; i++) {
       setTimeout(() => {
@@ -76,6 +79,7 @@ const useTerminalSounds = () => {
   const playSuccess = () => {
     initAudio();
     const ctx = audioContext.current;
+    if (!ctx) return;
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
 
@@ -105,6 +109,7 @@ const TerminalForum = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [currentTheme, setCurrentTheme] = useState('matrix');
+  const [activeTopic, setActiveTopic] = useState(null);
   const inputRef = useRef(null);
   const terminalRef = useRef(null);
 
@@ -302,6 +307,7 @@ const TerminalForum = () => {
           '  color [theme]  - Change terminal color theme\n' +
           '  themes         - List available color themes\n' +
           '  clear         - Clear terminal history\n' +
+          '  close         - Close the article viewer\n' +
           '  exit          - Exit the terminal'
         );
         break;
@@ -357,7 +363,8 @@ const TerminalForum = () => {
         const topicId = parseInt(args[0]);
         const topic = topics.find(t => t.id === topicId);
         if (topic) {
-          addToHistory(cmd, 
+          setActiveTopic(topic);
+          addToHistory(cmd,
             `Topic #${topic.id}: ${topic.title}\n` +
             `Author: ${topic.author}\n` +
             `Posted: ${topic.timestamp}\n` +
@@ -365,6 +372,7 @@ const TerminalForum = () => {
             `${topic.content}`
           );
         } else {
+          setActiveTopic(null);
           addToHistory(cmd, `Topic #${topicId} not found`, true);
           isError = true;
         }
@@ -435,6 +443,15 @@ const TerminalForum = () => {
         setHistory([]);
         break;
 
+      case 'close':
+        if (activeTopic) {
+          setActiveTopic(null);
+          addToHistory(cmd, 'Closed article view');
+        } else {
+          addToHistory(cmd, 'No article is currently open');
+        }
+        break;
+
       case 'exit':
         addToHistory(cmd, 'Thanks for visiting Terminal Forum! Goodbye.');
         break;
@@ -482,17 +499,18 @@ const TerminalForum = () => {
   }
 
   return (
-    <div 
-      className={`h-screen ${theme.bg} ${theme.primary} font-mono flex flex-col overflow-hidden`}
+    <div
+      className={`h-screen ${theme.bg} ${theme.primary} font-mono flex overflow-hidden`}
       onClick={() => inputRef.current?.focus()}
     >
-      <div 
-        ref={terminalRef}
-        className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-green-600 scrollbar-track-black"
-      >
-        <pre className="whitespace-pre-wrap text-sm leading-tight mb-4">
-          {bootText}
-        </pre>
+      <div className="flex flex-col flex-1">
+        <div
+          ref={terminalRef}
+          className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-green-600 scrollbar-track-black"
+        >
+          <pre className="whitespace-pre-wrap text-sm leading-tight mb-4">
+            {bootText}
+          </pre>
         
         {history.map((entry, i) => (
           <div key={i} className="mb-2">
@@ -521,7 +539,17 @@ const TerminalForum = () => {
           <div className={`w-2 h-4 ${theme.cursor} animate-pulse ml-1`}></div>
         </div>
       </div>
+      {activeTopic && (
+        <div className="hidden sm:block w-1/2 p-4 border-l border-gray-700 overflow-y-auto">
+          <h2 className={`${theme.accent} text-lg mb-1`}>{activeTopic.title}</h2>
+          <div className={`${theme.secondary} mb-2`}>Author: {activeTopic.author}</div>
+          <pre className="whitespace-pre-wrap text-sm">
+            {activeTopic.content}
+          </pre>
+        </div>
+      )}
     </div>
+  </div>
   );
 };
 
