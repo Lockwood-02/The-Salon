@@ -500,10 +500,10 @@ const TerminalForum = () => {
 
   return (
     <div
-      className={`h-screen ${theme.bg} ${theme.primary} font-mono flex overflow-hidden`}
+      className={`h-screen ${theme.bg} ${theme.primary} font-mono flex flex-row overflow-hidden`}
       onClick={() => inputRef.current?.focus()}
     >
-      <div className="flex flex-col flex-1">
+      <div className={`flex flex-col ${activeTopic ? 'w-1/2' : 'flex-1'}`}>
         <div
           ref={terminalRef}
           className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-green-600 scrollbar-track-black"
@@ -540,7 +540,7 @@ const TerminalForum = () => {
         </div>
       </div>
       {activeTopic && (
-        <div className="hidden sm:block w-1/2 p-4 border-l border-gray-700 overflow-y-auto">
+        <div className="w-1/2 p-4 border-l border-gray-700 overflow-y-auto">
           <h2 className={`${theme.accent} text-lg mb-1`}>{activeTopic.title}</h2>
           <div className={`${theme.secondary} mb-2`}>Author: {activeTopic.author}</div>
           <pre className="whitespace-pre-wrap text-sm">
