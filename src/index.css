@@ -7,7 +7,7 @@
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Fira Code', monospace;
+  font-family: 'Courier New', monospace;
 }
 
 /* Custom scrollbar for terminal */
