@@ -5,7 +5,7 @@ const useTerminalSounds = () => {
   const audioContext = useRef(null);
 
   const initAudio = () => {
-    if (!audioContext.current) {
+    if (!audioContext.current && typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) {
       audioContext.current = new (window.AudioContext || window.webkitAudioContext)();
     }
   };
@@ -13,6 +13,7 @@ const useTerminalSounds = () => {
   const playKeypress = () => {
     initAudio();
     const ctx = audioContext.current;
+    if (!ctx) return;
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
 
@@ -32,6 +33,7 @@ const useTerminalSounds = () => {
   const playBoot = () => {
     initAudio();
     const ctx = audioContext.current;
+    if (!ctx) return;
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
 
@@ -52,6 +54,7 @@ const useTerminalSounds = () => {
   const playError = () => {
     initAudio();
     const ctx = audioContext.current;
+    if (!ctx) return;
     
     for (let i = 0; i < 2; i++) {
       setTimeout(() => {
@@ -76,6 +79,7 @@ const useTerminalSounds = () => {
   const playSuccess = () => {
     initAudio();
     const ctx = audioContext.current;
+    if (!ctx) return;
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
 
@@ -105,6 +109,7 @@ const TerminalForum = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [currentTheme, setCurrentTheme] = useState('matrix');
+  const [activeTopic, setActiveTopic] = useState(null);
   const inputRef = useRef(null);
   const terminalRef = useRef(null);
 
@@ -232,13 +237,11 @@ const TerminalForum = () => {
     let i = 0;
     let isCancelled = false;
 
-
     // Play boot sound at start
     if (soundEnabled) {
       playBoot();
     }
     
-
     // Bug with duplicate lines
     const typeBootSequence = () => {
       if (isCancelled) return;
@@ -302,6 +305,7 @@ const TerminalForum = () => {
           '  color [theme]  - Change terminal color theme\n' +
           '  themes         - List available color themes\n' +
           '  clear         - Clear terminal history\n' +
+          '  close         - Close the article viewer\n' +
           '  exit          - Exit the terminal'
         );
         break;
@@ -357,14 +361,10 @@ const TerminalForum = () => {
         const topicId = parseInt(args[0]);
         const topic = topics.find(t => t.id === topicId);
         if (topic) {
-          addToHistory(cmd, 
-            `Topic #${topic.id}: ${topic.title}\n` +
-            `Author: ${topic.author}\n` +
-            `Posted: ${topic.timestamp}\n` +
-            `${'='.repeat(50)}\n\n` +
-            `${topic.content}`
-          );
+          setActiveTopic(topic);
+          addToHistory(cmd, `Opening topic #${topicId} in reader pane...`);
         } else {
+          setActiveTopic(null);
           addToHistory(cmd, `Topic #${topicId} not found`, true);
           isError = true;
         }
@@ -435,6 +435,15 @@ const TerminalForum = () => {
         setHistory([]);
         break;
 
+      case 'close':
+        if (activeTopic) {
+          setActiveTopic(null);
+          addToHistory(cmd, 'Reader pane closed');
+        } else {
+          addToHistory(cmd, 'No article is currently open');
+        }
+        break;
+
       case 'exit':
         addToHistory(cmd, 'Thanks for visiting Terminal Forum! Goodbye.');
         break;
@@ -482,45 +491,94 @@ const TerminalForum = () => {
   }
 
   return (
-    <div 
-      className={`h-screen ${theme.bg} ${theme.primary} font-mono flex flex-col overflow-hidden`}
+    <div
+      className={`h-screen ${theme.bg} ${theme.primary} font-mono flex flex-row overflow-hidden`}
       onClick={() => inputRef.current?.focus()}
     >
-      <div 
-        ref={terminalRef}
-        className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-green-600 scrollbar-track-black"
-      >
-        <pre className="whitespace-pre-wrap text-sm leading-tight mb-4">
-          {bootText}
-        </pre>
+      {/* Terminal Pane */}
+      <div className={`flex flex-col transition-all duration-300 ${activeTopic ? 'w-1/2' : 'flex-1'}`}>
+        <div
+          ref={terminalRef}
+          className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-green-600 scrollbar-track-black"
+        >
+          <pre className="whitespace-pre-wrap text-sm leading-tight mb-4">
+            {bootText}
+          </pre>
         
-        {history.map((entry, i) => (
-          <div key={i} className="mb-2">
-            <div className={theme.secondary}>
-              <span className={theme.accent}>{getPrompt()}</span>
-              {entry.command}
+          {history.map((entry, i) => (
+            <div key={i} className="mb-2">
+              <div className={theme.secondary}>
+                <span className={theme.accent}>{getPrompt()}</span>
+                {entry.command}
+              </div>
+              <pre className={`whitespace-pre-wrap text-sm mt-1 ${entry.isError ? theme.error : theme.primary}`}>
+                {entry.output}
+              </pre>
             </div>
-            <pre className={`whitespace-pre-wrap text-sm mt-1 ${entry.isError ? theme.error : theme.primary}`}>
-              {entry.output}
-            </pre>
-          </div>
-        ))}
+          ))}
         
-        <div className="flex items-center">
-          <span className={theme.accent}>{getPrompt()}</span>
-          <input
-            ref={inputRef}
-            type="text"
-            value={currentInput}
-            onChange={(e) => setCurrentInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className={`bg-transparent border-none outline-none ${theme.primary} flex-1 font-mono`}
-            autoFocus
-            spellCheck={false}
-          />
-          <div className={`w-2 h-4 ${theme.cursor} animate-pulse ml-1`}></div>
+          <div className="flex items-center">
+            <span className={theme.accent}>{getPrompt()}</span>
+            <input
+              ref={inputRef}
+              type="text"
+              value={currentInput}
+              onChange={(e) => setCurrentInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              className={`bg-transparent border-none outline-none ${theme.primary} flex-1 font-mono`}
+              autoFocus
+              spellCheck={false}
+            />
+            <div className={`w-2 h-4 ${theme.cursor} animate-pulse ml-1`}></div>
+          </div>
         </div>
       </div>
+
+      {/* Reader Pane */}
+      {activeTopic && (
+        <div className="w-1/2 border-l border-gray-600 flex flex-col">
+          {/* Reader Header */}
+          <div className={`${theme.bg} border-b border-gray-600 p-2`}>
+            <div className="flex items-center justify-between">
+              <div className={`${theme.accent} text-sm font-bold`}>
+                ┌─[ ARTICLE READER ]─────────────────────────┐
+              </div>
+            </div>
+          </div>
+          
+          {/* Reader Content */}
+          <div className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-green-600 scrollbar-track-black">
+            <div className={`${theme.accent} text-lg mb-2 border-b border-gray-700 pb-2`}>
+              Topic #{activeTopic.id}: {activeTopic.title}
+            </div>
+            
+            <div className="mb-4 space-y-1">
+              <div className={`${theme.secondary} text-sm`}>
+                <span className={theme.accent}>Author:</span> {activeTopic.author}
+              </div>
+              <div className={`${theme.secondary} text-sm`}>
+                <span className={theme.accent}>Posted:</span> {activeTopic.timestamp}
+              </div>
+            </div>
+            
+            <div className={`${theme.primary} text-sm leading-relaxed`}>
+              <pre className="whitespace-pre-wrap font-mono">
+                {activeTopic.content}
+              </pre>
+            </div>
+          </div>
+          
+          {/* Reader Footer */}
+          <div className={`${theme.bg} border-t border-gray-600 p-2`}>
+            <div className={`${theme.secondary} text-xs text-center`}>
+              Type "close" to close reader pane
+            </div>
+            <div className={`${theme.accent} text-sm text-center`}>
+              └───────────────────────────────────────────┘
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
