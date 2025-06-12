@@ -1,5 +1,5 @@
 import React from 'react';
-import TerminalForum from './TerminalForum';
+import TerminalForum from './frontend/src/TerminalForum';
 
 function App() {
   return <TerminalForum />;
