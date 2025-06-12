@@ -1,0 +1,26 @@
+the-salon/
+├─ public/
+│  ├─ sounds/
+│  ├─ favicon.ico
+│  ├─ index.html
+│  ├─ logo192.png
+│  ├─ logo512.png
+│  ├─ manifest.json
+│  └─ robots.txt
+├─ src/
+│  ├─ App.css
+│  ├─ App.jsx
+│  ├─ App.test.js
+│  ├─ index.css
+│  ├─ index.js
+│  ├─ logo.svg
+│  ├─ reportWebVitals.js
+│  ├─ setupTests.js
+│  └─ TerminalForum.jsx
+├─ .gitignore
+├─ output.txt
+├─ package-lock.json
+├─ package.json
+├─ postcss.config.js
+├─ README.md
+└─ tailwind.config.js
