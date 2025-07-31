@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom'
 
 // Custom sound hook using Web Audio API
 const useTerminalSounds = () => {
@@ -105,13 +106,17 @@ const TerminalForum = () => {
   const [bootText, setBootText] = useState('');
   const [currentInput, setCurrentInput] = useState('');
   const [history, setHistory] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    const storedUser = localStorage.getItem("user");
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
   const [isTyping, setIsTyping] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [currentTheme, setCurrentTheme] = useState('matrix');
   const [activeTopic, setActiveTopic] = useState(null);
   const inputRef = useRef(null);
   const terminalRef = useRef(null);
+  const navigate = useNavigate();
 
   // Color themes
   const themes = {
@@ -196,7 +201,7 @@ const TerminalForum = () => {
 
   // Mock data
   const [topics, setTopics] = useState([
-    { id: 1, title: 'Welcome to Terminal Forum', author: 'admin', content: 'Welcome to our retro terminal forum! Use commands to navigate.\n\nAvailable commands:\n- help: Show all commands\n- topics: List forum topics\n- read [id]: Read a specific topic\n- post: Create a new post\n- members: List community members\n- login: Authenticate with the system\n- clear: Clear terminal history', timestamp: '2025-06-04 10:00' },
+    { id: 1, title: 'Welcome to The Salon', author: 'admin', content: 'Welcome to our retro terminal forum! Use commands to navigate.\n\nAvailable commands:\n- help: Show all commands\n- topics: List forum topics\n- read [id]: Read a specific topic\n- post: Create a new post\n- members: List community members\n- login: Authenticate with the system\n- clear: Clear terminal history', timestamp: '2025-06-04 10:00' },
     { id: 2, title: 'Best Practices for Clean Code', author: 'dev_master', content: 'Let\'s discuss clean code principles:\n\n1. Write self-documenting code\n2. Keep functions small and focused\n3. Use meaningful variable names\n4. Follow consistent formatting\n5. Write tests for your code\n\nWhat are your favorite clean code practices?', timestamp: '2025-06-04 11:30' },
     { id: 3, title: 'Terminal Shortcuts Every Dev Should Know', author: 'bash_ninja', content: 'Essential terminal shortcuts:\n\n• Ctrl+A: Beginning of line\n• Ctrl+E: End of line\n• Ctrl+L: Clear screen\n• Ctrl+R: Reverse search\n• Ctrl+C: Interrupt process\n• Ctrl+Z: Suspend process\n\nShare your favorite shortcuts!', timestamp: '2025-06-04 12:15' }
   ]);
@@ -283,6 +288,15 @@ const TerminalForum = () => {
     setHistory(prev => [...prev, { command, output, isError, timestamp: new Date().toLocaleTimeString() }]);
   };
 
+  /* Show who you are logged in as upon boot
+  useEffect(() => {
+    if (currentUser) {
+      addToHistory('system', `Logged in as ${currentUser.display_name || currentUser.username}`);
+    }
+  }, []);
+  */
+  
+
   const executeCommand = (cmd) => {
     const parts = cmd.trim().toLowerCase().split(' ');
     const command = parts[0];
@@ -298,6 +312,7 @@ const TerminalForum = () => {
           '  read [id]     - Read a specific topic by ID\n' +
           '  post          - Create a new forum post\n' +
           '  members       - List community members\n' +
+          '  register       - Register to the system\n' +
           '  login [user]  - Login to the system\n' +
           '  logout        - Logout from the system\n' +
           '  whoami        - Show current user\n' +
@@ -370,29 +385,31 @@ const TerminalForum = () => {
         }
         break;
 
-      case 'post':
-        if (!currentUser) {
-          addToHistory(cmd, 'You must be logged in to post. Use "login [username]"', true);
-          isError = true;
+        case 'post':
+          if (!currentUser) {
+            addToHistory(cmd, 'You must be logged in to post. Use "login"', true);
+            isError = true;
+            break;
+          }
+        
+          const title = prompt('Enter topic title:');
+          const content = prompt('Enter topic content:');
+          if (title && content) {
+            const newTopic = {
+              id: topics.length + 1,
+              title,
+              author: currentUser.username, // ✅ safe because we checked above
+              content,
+              timestamp: new Date().toLocaleString()
+            };
+            setTopics(prev => [newTopic, ...prev]);
+            addToHistory(cmd, `Topic "${title}" created successfully! ID: ${newTopic.id}`);
+          } else {
+            addToHistory(cmd, 'Post creation cancelled', true);
+            isError = true;
+          }
           break;
-        }
-        const title = prompt('Enter topic title:');
-        const content = prompt('Enter topic content:');
-        if (title && content) {
-          const newTopic = {
-            id: topics.length + 1,
-            title,
-            author: currentUser,
-            content,
-            timestamp: new Date().toLocaleString()
-          };
-          setTopics(prev => [newTopic, ...prev]);
-          addToHistory(cmd, `Topic "${title}" created successfully! ID: ${newTopic.id}`);
-        } else {
-          addToHistory(cmd, 'Post creation cancelled', true);
-          isError = true;
-        }
-        break;
+        
 
       case 'members':
         const memberList = members.map(m => 
@@ -401,35 +418,45 @@ const TerminalForum = () => {
         addToHistory(cmd, `Community Members:\n${memberList}`);
         break;
 
+      case 'register':
+        addToHistory(cmd, 'Redirecting to registration page...');
+        navigate('/register');
+        break;
+
       case 'login':
         if (!args[0]) {
-          addToHistory(cmd, 'Usage: login [username]', true);
-          isError = true;
-          break;
+          addToHistory(cmd, 'Redirecting to login page...');
+          navigate('/login');
+            break;
         }
+        
         const username = args[0];
         const member = members.find(m => m.username === username);
         if (member) {
-          setCurrentUser(username);
+          setCurrentUser(member);
+           localStorage.setItem("user", JSON.stringify(member)); // ✅ persist
           addToHistory(cmd, `Welcome back, ${username}! You are now logged in.`);
         } else {
           addToHistory(cmd, `User "${username}" not found`, true);
           isError = true;
         }
-        break;
+         break;
 
-      case 'logout':
-        if (currentUser) {
-          addToHistory(cmd, `Goodbye, ${currentUser}!`);
-          setCurrentUser(null);
-        } else {
-          addToHistory(cmd, 'You are not logged in', true);
-        }
-        break;
+        case 'logout':
+          if (currentUser) {
+            addToHistory(cmd, `Goodbye, ${currentUser.username || currentUser}!`);
+            setCurrentUser(null);
+            localStorage.removeItem("user"); // ✅ clear persisted login
+            localStorage.removeItem("token");
+          } else {
+            addToHistory(cmd, 'You are not logged in', true);
+          }
+          break;
+        
 
-      case 'whoami':
-        addToHistory(cmd, currentUser ? `Current user: ${currentUser}` : 'Not logged in');
-        break;
+          case 'whoami':
+            addToHistory(cmd, currentUser ? `Current user: ${currentUser.display_name || currentUser.username}` : 'Not logged in');
+            break;
 
       case 'clear':
         setHistory([]);
@@ -445,7 +472,7 @@ const TerminalForum = () => {
         break;
 
       case 'exit':
-        addToHistory(cmd, 'Thanks for visiting Terminal Forum! Goodbye.');
+        addToHistory(cmd, 'Thanks for visiting The Salon! Goodbye.');
         break;
 
       default:
@@ -476,8 +503,10 @@ const TerminalForum = () => {
   };
 
   const getPrompt = () => {
-    return `${currentUser || 'guest'}@terminal-forum:~$ `;
+    const name = currentUser?.username || 'guest';
+    return `${name}@terminal-forum:~$ `;
   };
+  
 
   if (!bootComplete) {
     return (
