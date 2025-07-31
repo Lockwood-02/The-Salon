@@ -106,7 +106,10 @@ const TerminalForum = () => {
   const [bootText, setBootText] = useState('');
   const [currentInput, setCurrentInput] = useState('');
   const [history, setHistory] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    const storedUser = localStorage.getItem("user");
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
   const [isTyping, setIsTyping] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [currentTheme, setCurrentTheme] = useState('matrix');
@@ -285,6 +288,15 @@ const TerminalForum = () => {
     setHistory(prev => [...prev, { command, output, isError, timestamp: new Date().toLocaleTimeString() }]);
   };
 
+  /* Show who you are logged in as upon boot
+  useEffect(() => {
+    if (currentUser) {
+      addToHistory('system', `Logged in as ${currentUser.display_name || currentUser.username}`);
+    }
+  }, []);
+  */
+  
+
   const executeCommand = (cmd) => {
     const parts = cmd.trim().toLowerCase().split(' ');
     const command = parts[0];
@@ -373,29 +385,31 @@ const TerminalForum = () => {
         }
         break;
 
-      case 'post':
-        if (!currentUser) {
-          addToHistory(cmd, 'You must be logged in to post. Use "login [username]"', true);
-          isError = true;
+        case 'post':
+          if (!currentUser) {
+            addToHistory(cmd, 'You must be logged in to post. Use "login"', true);
+            isError = true;
+            break;
+          }
+        
+          const title = prompt('Enter topic title:');
+          const content = prompt('Enter topic content:');
+          if (title && content) {
+            const newTopic = {
+              id: topics.length + 1,
+              title,
+              author: currentUser.username, // ✅ safe because we checked above
+              content,
+              timestamp: new Date().toLocaleString()
+            };
+            setTopics(prev => [newTopic, ...prev]);
+            addToHistory(cmd, `Topic "${title}" created successfully! ID: ${newTopic.id}`);
+          } else {
+            addToHistory(cmd, 'Post creation cancelled', true);
+            isError = true;
+          }
           break;
-        }
-        const title = prompt('Enter topic title:');
-        const content = prompt('Enter topic content:');
-        if (title && content) {
-          const newTopic = {
-            id: topics.length + 1,
-            title,
-            author: currentUser,
-            content,
-            timestamp: new Date().toLocaleString()
-          };
-          setTopics(prev => [newTopic, ...prev]);
-          addToHistory(cmd, `Topic "${title}" created successfully! ID: ${newTopic.id}`);
-        } else {
-          addToHistory(cmd, 'Post creation cancelled', true);
-          isError = true;
-        }
-        break;
+        
 
       case 'members':
         const memberList = members.map(m => 
@@ -410,35 +424,39 @@ const TerminalForum = () => {
         break;
 
       case 'login':
-        if (args.length === 0) {
+        if (!args[0]) {
           addToHistory(cmd, 'Redirecting to login page...');
           navigate('/login');
-        } else {
-          // existing login logic...
+            break;
         }
+        
         const username = args[0];
         const member = members.find(m => m.username === username);
         if (member) {
-          setCurrentUser(username);
+          setCurrentUser(member);
+           localStorage.setItem("user", JSON.stringify(member)); // ✅ persist
           addToHistory(cmd, `Welcome back, ${username}! You are now logged in.`);
         } else {
           addToHistory(cmd, `User "${username}" not found`, true);
           isError = true;
         }
-        break;
+         break;
 
-      case 'logout':
-        if (currentUser) {
-          addToHistory(cmd, `Goodbye, ${currentUser}!`);
-          setCurrentUser(null);
-        } else {
-          addToHistory(cmd, 'You are not logged in', true);
-        }
-        break;
+        case 'logout':
+          if (currentUser) {
+            addToHistory(cmd, `Goodbye, ${currentUser.username || currentUser}!`);
+            setCurrentUser(null);
+            localStorage.removeItem("user"); // ✅ clear persisted login
+            localStorage.removeItem("token");
+          } else {
+            addToHistory(cmd, 'You are not logged in', true);
+          }
+          break;
+        
 
-      case 'whoami':
-        addToHistory(cmd, currentUser ? `Current user: ${currentUser}` : 'Not logged in');
-        break;
+          case 'whoami':
+            addToHistory(cmd, currentUser ? `Current user: ${currentUser.display_name || currentUser.username}` : 'Not logged in');
+            break;
 
       case 'clear':
         setHistory([]);
@@ -485,8 +503,10 @@ const TerminalForum = () => {
   };
 
   const getPrompt = () => {
-    return `${currentUser || 'guest'}@terminal-forum:~$ `;
+    const name = currentUser?.username || 'guest';
+    return `${name}@terminal-forum:~$ `;
   };
+  
 
   if (!bootComplete) {
     return (
