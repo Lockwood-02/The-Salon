@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom'
 
 // Custom sound hook using Web Audio API
 const useTerminalSounds = () => {
@@ -112,6 +113,7 @@ const TerminalForum = () => {
   const [activeTopic, setActiveTopic] = useState(null);
   const inputRef = useRef(null);
   const terminalRef = useRef(null);
+  const navigate = useNavigate();
 
   // Color themes
   const themes = {
@@ -298,6 +300,7 @@ const TerminalForum = () => {
           '  read [id]     - Read a specific topic by ID\n' +
           '  post          - Create a new forum post\n' +
           '  members       - List community members\n' +
+          '  register       - Register to the system\n' +
           '  login [user]  - Login to the system\n' +
           '  logout        - Logout from the system\n' +
           '  whoami        - Show current user\n' +
@@ -399,6 +402,11 @@ const TerminalForum = () => {
           `${m.username.padEnd(15)} [${m.status.toUpperCase()}] - ${m.role}`
         ).join('\n');
         addToHistory(cmd, `Community Members:\n${memberList}`);
+        break;
+
+      case 'register':
+        addToHistory(cmd, 'Redirecting to registration page...');
+        navigate('/register');
         break;
 
       case 'login':
