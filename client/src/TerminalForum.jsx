@@ -410,10 +410,11 @@ const TerminalForum = () => {
         break;
 
       case 'login':
-        if (!args[0]) {
-          addToHistory(cmd, 'Usage: login [username]', true);
-          isError = true;
-          break;
+        if (args.length === 0) {
+          addToHistory(cmd, 'Redirecting to login page...');
+          navigate('/login');
+        } else {
+          // existing login logic...
         }
         const username = args[0];
         const member = members.find(m => m.username === username);
