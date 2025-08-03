@@ -251,10 +251,12 @@ const TerminalForum = () => {
     const typeBootSequence = () => {
       if (isCancelled) return;
 
-      if (i < bootSequence.length) {
+      if (i < bootSequence.length - 1) {
         setBootText(prev => prev + bootSequence[i] + '\n');
         i++;
         setTimeout(typeBootSequence, i < 8 ? 200 : 50);
+        console.log(i);
+        console.log(bootSequence[i]);
       } else {
         setTimeout(() => {
           if (isCancelled) return;
