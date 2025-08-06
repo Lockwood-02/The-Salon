@@ -35,6 +35,7 @@ exit             Exit the terminal
 ```
 
 ## Getting Started
+First, go to each of the project folders (client and server) and run the following commands:
 
 1. Install dependencies:
    ```bash
@@ -46,9 +47,8 @@ exit             Exit the terminal
    ```
    The application will be available at [http://localhost:3000](http://localhost:3000).
 
-## Development Goals
-
-The Salon aims to provide a nostalgic command-line experience for modern web discussions. It is built with React and Tailwind CSS and currently stores all data locally in memory. Future iterations may include persistent storage, authentication, and networked features to turn it into a fully functional community platform.
+   You will also need to install postgresql and pgadmin4 in order to set up the database locally (will eventually go to online)
+   Once you have those installed, create a database and name it 'the_salon'.
 
 ## SQL Code for Local DB
 Here are the table creations needed so far in order to properly utilize the local postgres database:
@@ -81,6 +81,12 @@ CREATE TABLE IF NOT EXISTS posts (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ```
+
+## Development Goals
+
+The Salon aims to provide a nostalgic command-line experience for modern web discussions. It is built with React and Tailwind CSS and currently stores all data locally in memory. Future iterations may include persistent storage, authentication, and networked features to turn it into a fully functional community platform.
+
+
 
 
 ## Planned Features
