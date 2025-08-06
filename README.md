@@ -46,9 +46,11 @@ First, go to each of the project folders (client and server) and run the followi
    npm start
    ```
    The application will be available at [http://localhost:3000](http://localhost:3000).
-
-   You will also need to install postgresql and pgadmin4 in order to set up the database locally (will eventually go to online)
-   Once you have those installed, create a database and name it 'the_salon'.
+3. Install the resources
+   You will also need to install [postgresql](https://www.postgresql.org/download/) and [pgadmin4](https://www.pgadmin.org/download/) in order to set up the database locally.
+4. Create the database
+   Once those have been installed, connect your pgadmin to your postgresql server and create a database named "the_salon"
+   
 
 ## SQL Code for Local DB
 Here are the table creations needed so far in order to properly utilize the local postgres database:
