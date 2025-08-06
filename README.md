@@ -50,11 +50,44 @@ exit             Exit the terminal
 
 The Salon aims to provide a nostalgic command-line experience for modern web discussions. It is built with React and Tailwind CSS and currently stores all data locally in memory. Future iterations may include persistent storage, authentication, and networked features to turn it into a fully functional community platform.
 
+## SQL Code for Local DB
+Here are the table creations needed so far in order to properly utilize the local postgres database:
+
+### Users table
+```SQL
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  display_name VARCHAR(100),
+  role VARCHAR(20) DEFAULT 'user',
+  status VARCHAR(20) DEFAULT 'active',
+  bio TEXT DEFAULT '',
+  join_date TIMESTAMP NOT NULL,
+  last_login TIMESTAMP,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+```
+### Posts table
+```SQL
+CREATE TABLE IF NOT EXISTS posts (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(100) NOT NULL,
+    content TEXT NOT NULL,
+    author VARCHAR(100) NOT NULL REFERENCES users(username),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+
 ## Planned Features
 
 Add your ideas here. Potential improvements include:
 
-- Persistent user accounts and authentication
-- Server‑side storage of forum topics
+- Persistent user accounts and authentication [CHECK]
+- Server‑side storage of forum topics [CHECK]
 - Real-time chat or notifications
 - Additional terminal themes and sounds
