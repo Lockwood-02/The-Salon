@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 // Custom sound hook using Web Audio API
 const useTerminalSounds = () => {
@@ -200,11 +201,7 @@ const TerminalForum = () => {
   const { playKeypress, playBoot, playError, playSuccess } = useTerminalSounds();
 
   // Mock data
-  const [topics, setTopics] = useState([
-    { id: 1, title: 'Welcome to The Salon', author: 'admin', content: 'Welcome to our retro terminal forum! Use commands to navigate.\n\nAvailable commands:\n- help: Show all commands\n- topics: List forum topics\n- read [id]: Read a specific topic\n- post: Create a new post\n- members: List community members\n- login: Authenticate with the system\n- clear: Clear terminal history', timestamp: '2025-06-04 10:00' },
-    { id: 2, title: 'Best Practices for Clean Code', author: 'dev_master', content: 'Let\'s discuss clean code principles:\n\n1. Write self-documenting code\n2. Keep functions small and focused\n3. Use meaningful variable names\n4. Follow consistent formatting\n5. Write tests for your code\n\nWhat are your favorite clean code practices?', timestamp: '2025-06-04 11:30' },
-    { id: 3, title: 'Terminal Shortcuts Every Dev Should Know', author: 'bash_ninja', content: 'Essential terminal shortcuts:\n\n• Ctrl+A: Beginning of line\n• Ctrl+E: End of line\n• Ctrl+L: Clear screen\n• Ctrl+R: Reverse search\n• Ctrl+C: Interrupt process\n• Ctrl+Z: Suspend process\n\nShare your favorite shortcuts!', timestamp: '2025-06-04 12:15' }
-  ]);
+  const [topics, setTopics] = useState([]);
 
   const members = [
     { username: 'admin', status: 'online', role: 'Administrator' },
@@ -239,6 +236,25 @@ const TerminalForum = () => {
   ];
 
   useEffect(() => {
+    const fetchTopics = async () => {
+      try {
+        const res = await axios.get('http://localhost:4000/api/posts');
+        const posts = res.data.map(p => ({
+          id: p.id,
+          title: p.title,
+          author: p.author,
+          content: p.content,
+          timestamp: new Date(p.timestamp).toLocaleString(),
+        }));
+        setTopics(posts);
+      } catch (err) {
+        console.error('Failed to load posts', err);
+      }
+    };
+    fetchTopics();
+  }, []);
+
+  useEffect(() => {
     let i = 0;
     let isCancelled = false;
 
@@ -255,8 +271,8 @@ const TerminalForum = () => {
         setBootText(prev => prev + bootSequence[i] + '\n');
         i++;
         setTimeout(typeBootSequence, i < 8 ? 200 : 50);
-        console.log(i);
-        console.log(bootSequence[i]);
+        // console.log(i);
+        // console.log(bootSequence[i]);
       } else {
         setTimeout(() => {
           if (isCancelled) return;
@@ -299,7 +315,7 @@ const TerminalForum = () => {
   */
   
 
-  const executeCommand = (cmd) => {
+  const executeCommand = async (cmd) => {
     const parts = cmd.trim().toLowerCase().split(' ');
     const command = parts[0];
     const args = parts.slice(1);
@@ -397,15 +413,31 @@ const TerminalForum = () => {
           const title = prompt('Enter topic title:');
           const content = prompt('Enter topic content:');
           if (title && content) {
-            const newTopic = {
-              id: topics.length + 1,
-              title,
-              author: currentUser.username, // ✅ safe because we checked above
-              content,
-              timestamp: new Date().toLocaleString()
-            };
-            setTopics(prev => [newTopic, ...prev]);
-            addToHistory(cmd, `Topic "${title}" created successfully! ID: ${newTopic.id}`);
+            try {
+              const token = localStorage.getItem('token');
+              const res = await axios.post(
+                'http://localhost:4000/api/posts',
+                { title, content },
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+
+              const newTopic = {
+                id: res.data.id,
+                title: res.data.title,
+                author: currentUser.username,
+                content: res.data.content,
+                timestamp: new Date(res.data.timestamp).toLocaleString(),
+              };
+              setTopics(prev => [newTopic, ...prev]);
+              addToHistory(cmd, `Topic "${title}" created successfully! ID: ${newTopic.id}`);
+            } catch (err) {
+              addToHistory(
+                cmd,
+                err.response?.data?.error || 'Failed to create post',
+                true
+              );
+              isError = true;
+            }
           } else {
             addToHistory(cmd, 'Post creation cancelled', true);
             isError = true;
