@@ -115,6 +115,10 @@ const TerminalForum = () => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [currentTheme, setCurrentTheme] = useState('matrix');
   const [activeTopic, setActiveTopic] = useState(null);
+  const [activeProfile, setActiveProfile] = useState(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileDraft, setProfileDraft] = useState(null);
+  const editableFields = ['display_name', 'bio'];
   const inputRef = useRef(null);
   const terminalRef = useRef(null);
   const navigate = useNavigate();
@@ -316,8 +320,8 @@ const TerminalForum = () => {
   
 
   const executeCommand = async (cmd) => {
-    const parts = cmd.trim().toLowerCase().split(' ');
-    const command = parts[0];
+    const parts = cmd.trim().split(/\s+/);
+    const command = parts[0]?.toLowerCase();
     const args = parts.slice(1);
     let isError = false;
 
@@ -330,6 +334,8 @@ const TerminalForum = () => {
           '  read [id]     - Read a specific topic by ID\n' +
           '  post          - Create a new forum post\n' +
           '  members       - List community members\n' +
+          '  visit [user]  - View a user\'s profile\n' +
+          '  edit profile  - Edit your profile\n' +
           '  register       - Register to the system\n' +
           '  login [user]  - Login to the system\n' +
           '  logout        - Logout from the system\n' +
@@ -339,6 +345,7 @@ const TerminalForum = () => {
           '  themes         - List available color themes\n' +
           '  clear         - Clear terminal history\n' +
           '  close         - Close the article viewer\n' +
+          '  save          - Save profile changes (edit mode)\n' +
           '  exit          - Exit the terminal'
         );
         break;
@@ -394,7 +401,10 @@ const TerminalForum = () => {
         const topicId = parseInt(args[0]);
         const topic = topics.find(t => t.id === topicId);
         if (topic) {
+          setActiveProfile(null);
           setActiveTopic(topic);
+          setIsEditingProfile(false);
+          setProfileDraft(null);
           addToHistory(cmd, `Opening topic #${topicId} in reader pane...`);
         } else {
           setActiveTopic(null);
@@ -452,6 +462,110 @@ const TerminalForum = () => {
         addToHistory(cmd, `Community Members:\n${memberList}`);
         break;
 
+      case 'visit':
+        if (!args[0]) {
+          addToHistory(cmd, 'Usage: search [username]', true);
+          isError = true;
+          break;
+        }
+        try {
+          const res = await axios.get(`http://localhost:4000/api/users/${args[0]}`);
+          setActiveTopic(null);
+          setIsEditingProfile(false);
+          setProfileDraft(null);
+          setActiveProfile(res.data);
+          addToHistory(cmd, `Displaying profile for ${res.data.username}...`);
+        } catch (err) {
+          setActiveProfile(null);
+          const message = err.response?.status === 404
+            ? `User "${args[0]}" not found`
+            : err.response?.data?.error || 'Failed to fetch profile';
+          addToHistory(cmd, message, true);
+          isError = true;
+        }
+        break;
+
+        case 'edit': {
+          if (args[0] === 'profile') {
+            if (!currentUser) {
+              addToHistory(cmd, 'You must be logged in to edit your profile', true);
+              isError = true;
+              break;
+            }
+            try {
+              const token = localStorage.getItem('token');
+              const res = await axios.get(`http://localhost:4000/api/users/${currentUser.username}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+              });
+              setActiveTopic(null);
+              setIsEditingProfile(true);
+              setProfileDraft(res.data);
+              setActiveProfile(res.data);
+              addToHistory(cmd, 'Profile loaded. Use "set [field] [value]" to make changes and "save" to apply.');
+            } catch (err) {
+              addToHistory(cmd, err.response?.data?.error || 'Failed to load profile', true);
+              isError = true;
+            }
+          } else {
+            addToHistory(cmd, 'Usage: edit profile', true);
+            isError = true;
+          }
+          break;
+        }
+  
+        case 'set': {
+          if (!isEditingProfile) {
+            addToHistory(cmd, 'Profile fields can only be set in edit mode. Use "edit profile" first.', true);
+            isError = true;
+            break;
+          }
+          if (!args[0] || args.length < 2) {
+            addToHistory(cmd, 'Usage: set [field] [value]', true);
+            isError = true;
+            break;
+          }
+          const field = args[0];
+          const value = args.slice(1).join(' ');
+          if (!editableFields.includes(field)) {
+            addToHistory(cmd, `Field "${field}" cannot be edited`, true);
+            isError = true;
+            break;
+          }
+          setProfileDraft(prev => {
+            const updated = { ...prev, [field]: value };
+            setActiveProfile(updated);
+            return updated;
+          });
+          addToHistory(cmd, `Updated ${field}`);
+          break;
+        }
+  
+        case 'save': {
+          if (!isEditingProfile) {
+            addToHistory(cmd, 'Nothing to save. Use "edit profile" first.', true);
+            isError = true;
+            break;
+          }
+          try {
+            const token = localStorage.getItem('token');
+            const res = await axios.put(
+              `http://localhost:4000/api/users/${currentUser.username}`,
+              { display_name: profileDraft.display_name, bio: profileDraft.bio },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            setCurrentUser(res.data);
+            localStorage.setItem('user', JSON.stringify(res.data));
+            addToHistory(cmd, 'Profile updated successfully.');
+            setIsEditingProfile(false);
+            setProfileDraft(null);
+            setActiveProfile(null);
+          } catch (err) {
+            addToHistory(cmd, err.response?.data?.error || 'Failed to update profile', true);
+            isError = true;
+          }
+          break;
+        }
+
       case 'register':
         addToHistory(cmd, 'Redirecting to registration page...');
         navigate('/register');
@@ -497,11 +611,14 @@ const TerminalForum = () => {
         break;
 
       case 'close':
-        if (activeTopic) {
+        if (activeTopic || activeProfile) {
           setActiveTopic(null);
-          addToHistory(cmd, 'Reader pane closed');
+          setActiveProfile(null);
+          setIsEditingProfile(false);
+          setProfileDraft(null);
+          addToHistory(cmd, 'Side pane closed');
         } else {
-          addToHistory(cmd, 'No article is currently open');
+          addToHistory(cmd, 'No pane is currently open');
         }
         break;
 
@@ -540,7 +657,8 @@ const TerminalForum = () => {
     const name = currentUser?.username || 'guest';
     return `${name}@terminal-forum:~$ `;
   };
-  
+
+  const isPaneOpen = Boolean(activeTopic || activeProfile);
 
   if (!bootComplete) {
     return (
@@ -559,7 +677,7 @@ const TerminalForum = () => {
       onClick={() => inputRef.current?.focus()}
     >
       {/* Terminal Pane */}
-      <div className={`flex flex-col transition-all duration-300 ${activeTopic ? 'w-1/2' : 'flex-1'}`}>
+      <div className={`flex flex-col transition-all duration-300 ${isPaneOpen ? 'w-1/2' : 'flex-1'}`}> 
         <div
           ref={terminalRef}
           className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-green-600 scrollbar-track-black"
@@ -597,44 +715,90 @@ const TerminalForum = () => {
         </div>
       </div>
 
-      {/* Reader Pane */}
-      {activeTopic && (
+      {/* Side Pane */}
+      {(activeTopic || activeProfile) && (
         <div className="w-1/2 border-l border-gray-600 flex flex-col">
-          {/* Reader Header */}
+          {/* Side Pane Header */}
           <div className={`${theme.bg} border-b border-gray-600 p-2`}>
             <div className="flex items-center justify-between">
               <div className={`${theme.accent} text-sm font-bold`}>
-                ┌─[ ARTICLE READER ]─────────────────────────┐
+              {activeTopic
+                  ? '┌─[ ARTICLE READER ]─────────────────────────┐'
+                  : isEditingProfile
+                    ? '┌─[ EDIT PROFILE ]──────────────────────────┐'
+                    : '┌─[ USER PROFILE ]──────────────────────────┐'}
               </div>
             </div>
           </div>
           
-          {/* Reader Content */}
+          {/* Side Pane Content */}
           <div className="flex-1 p-4 overflow-y-auto scrollbar-thin scrollbar-thumb-green-600 scrollbar-track-black">
-            <div className={`${theme.accent} text-lg mb-2 border-b border-gray-700 pb-2`}>
-              Topic #{activeTopic.id}: {activeTopic.title}
-            </div>
-            
-            <div className="mb-4 space-y-1">
-              <div className={`${theme.secondary} text-sm`}>
-                <span className={theme.accent}>Author:</span> {activeTopic.author}
-              </div>
-              <div className={`${theme.secondary} text-sm`}>
-                <span className={theme.accent}>Posted:</span> {activeTopic.timestamp}
-              </div>
-            </div>
-            
-            <div className={`${theme.primary} text-sm leading-relaxed`}>
-              <pre className="whitespace-pre-wrap font-mono">
-                {activeTopic.content}
-              </pre>
-            </div>
+          {activeTopic ? (
+              <>
+                <div className={`${theme.accent} text-lg mb-2 border-b border-gray-700 pb-2`}>
+                  Topic #{activeTopic.id}: {activeTopic.title}
+                </div>
+
+                <div className="mb-4 space-y-1">
+                  <div className={`${theme.secondary} text-sm`}>
+                    <span className={theme.accent}>Author:</span> {activeTopic.author}
+                  </div>
+                  <div className={`${theme.secondary} text-sm`}>
+                    <span className={theme.accent}>Posted:</span> {activeTopic.timestamp}
+                  </div>
+                </div>
+
+                <div className={`${theme.primary} text-sm leading-relaxed`}>
+                  <pre className="whitespace-pre-wrap font-mono">
+                    {activeTopic.content}
+                  </pre>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={`${theme.accent} text-lg mb-2 border-b border-gray-700 pb-2`}>
+                  {activeProfile.display_name || activeProfile.username}
+                </div>
+
+                {isEditingProfile && (
+                  <div className={`${theme.secondary} text-xs mb-2`}>
+                    Editable fields: display_name, bio
+                  </div>
+                )}
+
+                <div className="mb-4 space-y-1">
+                  <div className={`${theme.secondary} text-sm`}>
+                    <span className={theme.accent}>Username:</span> {activeProfile.username}
+                  </div>
+                  <div className={`${theme.secondary} text-sm`}>
+                    <span className={theme.accent}>Role:</span> {activeProfile.role}
+                  </div>
+                  <div className={`${theme.secondary} text-sm`}>
+                    <span className={theme.accent}>Status:</span> {activeProfile.status}
+                  </div>
+                  <div className={`${theme.secondary} text-sm`}>
+                    <span className={theme.accent}>Joined:</span> {new Date(activeProfile.join_date).toLocaleString()}
+                  </div>
+                  {activeProfile.last_login && (
+                    <div className={`${theme.secondary} text-sm`}>
+                      <span className={theme.accent}>Last Login:</span> {new Date(activeProfile.last_login).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+
+                <div className={`${theme.primary} text-sm leading-relaxed`}>
+                  <pre className="whitespace-pre-wrap font-mono">
+                    {activeProfile.bio || 'No bio available.'}
+                  </pre>
+                </div>
+              </>
+            )}
           </div>
           
-          {/* Reader Footer */}
+          {/* Side Pane Footer */}
           <div className={`${theme.bg} border-t border-gray-600 p-2`}>
             <div className={`${theme.secondary} text-xs text-center`}>
-              Type "close" to close reader pane
+            {isEditingProfile ? 'Type "save" to save changes or "close" to cancel' : `Type "close" to close ${activeTopic ? 'reader' : 'profile'} pane`}
             </div>
             <div className={`${theme.accent} text-sm text-center`}>
               └───────────────────────────────────────────┘
