@@ -325,6 +325,31 @@ const TerminalForum = () => {
     }
   }, [isCreatingPost, postStep]);
 
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        if (activeTopic || activeProfile || forumMode || isCreatingPost) {
+          setActiveTopic(null);
+          setActiveProfile(null);
+          setIsEditingProfile(false);
+          setProfileDraft(null);
+          setForumMode(false);
+          setForumPosts([]);
+          setForumPage(1);
+          setIsCreatingPost(false);
+          setPostTitle('');
+          setPostContent('');
+          setPostStep(1);
+          addToHistory('esc', 'Closed active pane via Esc key');
+          inputRef.current?.focus();
+        }
+      }
+    };
+  
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [activeTopic, activeProfile, forumMode, isCreatingPost]);
+
   const addToHistory = (command, output, isError = false) => {
     setHistory(prev => [...prev, { command, output, isError, timestamp: new Date().toLocaleTimeString() }]);
   };
