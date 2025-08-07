@@ -981,7 +981,7 @@ const TerminalForum = () => {
                   <div className={`${theme.secondary} text-xs mb-2`}>
                     Page {forumPage} of {forumTotalPages}
                   </div>
-                  <div className={`grid grid-cols-[40px_auto_80px_150px] gap-2 text-sm ${theme.accent} border-b border-gray-700 pb-1`}>
+                  <div className={`grid grid-cols-[40px_auto_100px_150px] gap-2 text-sm ${theme.accent} border-b border-gray-700 pb-1`}>
                     <div>ID</div>
                     <div>Title</div>
                     <div>Author</div>
