@@ -670,6 +670,23 @@ const TerminalForum = () => {
             setCurrentUser(null);
             localStorage.removeItem("user"); // ✅ clear persisted login
             localStorage.removeItem("token");
+            if (activeTopic) {
+              setActiveTopic(null);
+            } else if (activeProfile) {
+              setActiveProfile(null);
+              setIsEditingProfile(false);
+              setProfileDraft(null);
+            } else if (forumMode) {
+              setForumMode(false);
+              setForumPosts([]);
+              setForumPage(1);
+            } else if (isCreatingPost) {
+              setIsCreatingPost(false);
+              setPostTitle('');
+              setPostContent('');
+              setPostStep(1);
+            } 
+            break;
           } else {
             addToHistory(cmd, 'You are not logged in', true);
           }
