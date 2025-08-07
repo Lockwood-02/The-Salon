@@ -678,6 +678,9 @@ const TerminalForum = () => {
       case 'login':
         if (!args[0]) {
           addToHistory(cmd, 'Redirecting to login page...');
+          setCurrentUser(null);
+            localStorage.removeItem("user"); // ✅ clear persisted login
+            localStorage.removeItem("token");
           navigate('/login');
             break;
         }
