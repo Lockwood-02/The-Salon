@@ -119,6 +119,9 @@ const TerminalForum = () => {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileDraft, setProfileDraft] = useState(null);
   const editableFields = ['display_name', 'bio'];
+  const [forumMode, setForumMode] = useState(false);
+  const [forumPosts, setForumPosts] = useState([]);
+  const [forumPage, setForumPage] = useState(1);
   const inputRef = useRef(null);
   const terminalRef = useRef(null);
   const navigate = useNavigate();
@@ -331,6 +334,7 @@ const TerminalForum = () => {
           'Available Commands:\n' +
           '  help          - Show this help message\n' +
           '  topics        - List all forum topics\n' +
+          '  forum        - Opens the forum side panel\n' +
           '  read [id]     - Read a specific topic by ID\n' +
           '  post          - Create a new forum post\n' +
           '  members       - List community members\n' +
@@ -383,6 +387,52 @@ const TerminalForum = () => {
           .map(([key, theme]) => `  ${key.padEnd(8)} - ${theme.name}`)
           .join('\n');
         addToHistory(cmd, `Available Color Themes:\n${themeList}\n\nUsage: color [theme_name]`);
+        break;
+
+      case 'forum':
+        setActiveProfile(null);
+        setActiveTopic(null);
+        setIsEditingProfile(false);
+        setProfileDraft(null);
+        setForumMode(true);
+        setForumPosts(topics);
+        setForumPage(1);
+        addToHistory(cmd, 'Entering forum mode. Use "search <text>" to filter, "page <n>" to navigate, or "read <id>" to view a post.');
+        break;
+
+      case 'search':
+        if (!forumMode) {
+          addToHistory(cmd, 'Search is only available in forum mode', true);
+          isError = true;
+          break;
+        }
+        if (!args.length) {
+          addToHistory(cmd, 'Usage: search <text>', true);
+          isError = true;
+          break;
+        }
+        const query = args.join(' ').toLowerCase();
+        const filtered = topics.filter(t => t.title.toLowerCase().includes(query));
+        setForumPosts(filtered);
+        setForumPage(1);
+        addToHistory(cmd, `Found ${filtered.length} post${filtered.length === 1 ? '' : 's'} matching "${query}"`);
+        break;
+
+      case 'page':
+        if (!forumMode) {
+          addToHistory(cmd, 'Page command is only available in forum mode', true);
+          isError = true;
+          break;
+        }
+        const pageNum = parseInt(args[0]);
+        const totalPages = Math.max(1, Math.ceil(forumPosts.length / 10));
+        if (!pageNum || pageNum < 1 || pageNum > totalPages) {
+          addToHistory(cmd, `Invalid page number. Enter a number between 1 and ${totalPages}`, true);
+          isError = true;
+        } else {
+          setForumPage(pageNum);
+          addToHistory(cmd, `Switched to page ${pageNum}`);
+        }
         break;
 
       case 'topics':
@@ -439,6 +489,9 @@ const TerminalForum = () => {
                 timestamp: new Date(res.data.timestamp).toLocaleString(),
               };
               setTopics(prev => [newTopic, ...prev]);
+              if (forumMode) {
+                setForumPosts(prev => [newTopic, ...prev]);
+              }
               addToHistory(cmd, `Topic "${title}" created successfully! ID: ${newTopic.id}`);
             } catch (err) {
               addToHistory(
@@ -611,12 +664,23 @@ const TerminalForum = () => {
         break;
 
       case 'close':
-        if (activeTopic || activeProfile) {
+        if (activeTopic) {
           setActiveTopic(null);
+          if (forumMode) {
+            addToHistory(cmd, 'Reader closed');
+          } else {
+            addToHistory(cmd, 'Side pane closed');
+          }
+        } else if (activeProfile) {
           setActiveProfile(null);
           setIsEditingProfile(false);
           setProfileDraft(null);
           addToHistory(cmd, 'Side pane closed');
+        } else if (forumMode) {
+          setForumMode(false);
+          setForumPosts([]);
+          setForumPage(1);
+          addToHistory(cmd, 'Forum closed');
         } else {
           addToHistory(cmd, 'No pane is currently open');
         }
@@ -658,7 +722,10 @@ const TerminalForum = () => {
     return `${name}@terminal-forum:~$ `;
   };
 
-  const isPaneOpen = Boolean(activeTopic || activeProfile);
+  const paginatedForumPosts = forumPosts.slice((forumPage - 1) * 10, forumPage * 10);
+  const forumTotalPages = Math.max(1, Math.ceil(forumPosts.length / 10));
+
+  const isPaneOpen = Boolean(activeTopic || activeProfile || forumMode);
 
   if (!bootComplete) {
     return (
@@ -716,7 +783,7 @@ const TerminalForum = () => {
       </div>
 
       {/* Side Pane */}
-      {(activeTopic || activeProfile) && (
+      {(activeTopic || activeProfile || forumMode) && (
         <div className="w-1/2 border-l border-gray-600 flex flex-col">
           {/* Side Pane Header */}
           <div className={`${theme.bg} border-b border-gray-600 p-2`}>
@@ -724,9 +791,11 @@ const TerminalForum = () => {
               <div className={`${theme.accent} text-sm font-bold`}>
               {activeTopic
                   ? '┌─[ ARTICLE READER ]─────────────────────────┐'
-                  : isEditingProfile
-                    ? '┌─[ EDIT PROFILE ]──────────────────────────┐'
-                    : '┌─[ USER PROFILE ]──────────────────────────┐'}
+                  : activeProfile
+                    ? (isEditingProfile
+                        ? '┌─[ EDIT PROFILE ]──────────────────────────┐'
+                        : '┌─[ USER PROFILE ]──────────────────────────┐')
+                    : '┌─[ FORUM ]──────────────────────────────────┐'}
               </div>
             </div>
           </div>
@@ -754,7 +823,7 @@ const TerminalForum = () => {
                   </pre>
                 </div>
               </>
-            ) : (
+            ) : activeProfile ? (
               <>
                 <div className={`${theme.accent} text-lg mb-2 border-b border-gray-700 pb-2`}>
                   {activeProfile.display_name || activeProfile.username}
@@ -792,13 +861,41 @@ const TerminalForum = () => {
                   </pre>
                 </div>
               </>
+              ) : (
+                <>
+                  <div className={`${theme.secondary} text-xs mb-2`}>
+                    Page {forumPage} of {forumTotalPages}
+                  </div>
+                  <div className={`grid grid-cols-[40px_auto_80px_150px] gap-2 text-sm ${theme.accent} border-b border-gray-700 pb-1`}>
+                    <div>ID</div>
+                    <div>Title</div>
+                    <div>Author</div>
+                    <div>Date</div>
+                  </div>
+                  {paginatedForumPosts.length > 0 ? (
+                    paginatedForumPosts.map(post => (
+                      <div key={post.id} className={`grid grid-cols-[40px_auto_80px_150px] gap-2 text-sm border-b border-gray-700 py-1`}>
+                        <div className={theme.secondary}>{post.id}</div>
+                        <div className={`${theme.primary} truncate`}>{post.title}</div>
+                        <div className={theme.secondary}>{post.author}</div>
+                        <div className={theme.secondary}>{post.timestamp}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className={`${theme.secondary} text-sm mt-2`}>No posts found.</div>
+                  )}
+                </>
             )}
           </div>
           
           {/* Side Pane Footer */}
           <div className={`${theme.bg} border-t border-gray-600 p-2`}>
             <div className={`${theme.secondary} text-xs text-center`}>
-            {isEditingProfile ? 'Type "save" to save changes or "close" to cancel' : `Type "close" to close ${activeTopic ? 'reader' : 'profile'} pane`}
+            {activeTopic
+                ? 'Type "close" to close reader pane'
+                : activeProfile
+                  ? (isEditingProfile ? 'Type "save" to save changes or "close" to cancel' : 'Type "close" to close profile pane')
+                  : 'Use "search <text>" to filter or "page <n>" to navigate. Type "close" to exit forum'}
             </div>
             <div className={`${theme.accent} text-sm text-center`}>
               └───────────────────────────────────────────┘
