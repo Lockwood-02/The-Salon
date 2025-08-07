@@ -116,6 +116,9 @@ const TerminalForum = () => {
   const [currentTheme, setCurrentTheme] = useState('matrix');
   const [activeTopic, setActiveTopic] = useState(null);
   const [activeProfile, setActiveProfile] = useState(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileDraft, setProfileDraft] = useState(null);
+  const editableFields = ['display_name', 'bio'];
   const inputRef = useRef(null);
   const terminalRef = useRef(null);
   const navigate = useNavigate();
@@ -332,6 +335,7 @@ const TerminalForum = () => {
           '  post          - Create a new forum post\n' +
           '  members       - List community members\n' +
           '  visit [user]  - View a user\'s profile\n' +
+          '  edit profile  - Edit your profile\n' +
           '  register       - Register to the system\n' +
           '  login [user]  - Login to the system\n' +
           '  logout        - Logout from the system\n' +
@@ -341,6 +345,7 @@ const TerminalForum = () => {
           '  themes         - List available color themes\n' +
           '  clear         - Clear terminal history\n' +
           '  close         - Close the article viewer\n' +
+          '  save          - Save profile changes (edit mode)\n' +
           '  exit          - Exit the terminal'
         );
         break;
@@ -398,6 +403,8 @@ const TerminalForum = () => {
         if (topic) {
           setActiveProfile(null);
           setActiveTopic(topic);
+          setIsEditingProfile(false);
+          setProfileDraft(null);
           addToHistory(cmd, `Opening topic #${topicId} in reader pane...`);
         } else {
           setActiveTopic(null);
@@ -463,8 +470,10 @@ const TerminalForum = () => {
         }
         try {
           const res = await axios.get(`http://localhost:4000/api/users/${args[0]}`);
-          setActiveProfile(res.data);
           setActiveTopic(null);
+          setIsEditingProfile(false);
+          setProfileDraft(null);
+          setActiveProfile(res.data);
           addToHistory(cmd, `Displaying profile for ${res.data.username}...`);
         } catch (err) {
           setActiveProfile(null);
@@ -475,6 +484,87 @@ const TerminalForum = () => {
           isError = true;
         }
         break;
+
+        case 'edit': {
+          if (args[0] === 'profile') {
+            if (!currentUser) {
+              addToHistory(cmd, 'You must be logged in to edit your profile', true);
+              isError = true;
+              break;
+            }
+            try {
+              const token = localStorage.getItem('token');
+              const res = await axios.get(`http://localhost:4000/api/users/${currentUser.username}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+              });
+              setActiveTopic(null);
+              setIsEditingProfile(true);
+              setProfileDraft(res.data);
+              setActiveProfile(res.data);
+              addToHistory(cmd, 'Profile loaded. Use "set [field] [value]" to make changes and "save" to apply.');
+            } catch (err) {
+              addToHistory(cmd, err.response?.data?.error || 'Failed to load profile', true);
+              isError = true;
+            }
+          } else {
+            addToHistory(cmd, 'Usage: edit profile', true);
+            isError = true;
+          }
+          break;
+        }
+  
+        case 'set': {
+          if (!isEditingProfile) {
+            addToHistory(cmd, 'Profile fields can only be set in edit mode. Use "edit profile" first.', true);
+            isError = true;
+            break;
+          }
+          if (!args[0] || args.length < 2) {
+            addToHistory(cmd, 'Usage: set [field] [value]', true);
+            isError = true;
+            break;
+          }
+          const field = args[0];
+          const value = args.slice(1).join(' ');
+          if (!editableFields.includes(field)) {
+            addToHistory(cmd, `Field "${field}" cannot be edited`, true);
+            isError = true;
+            break;
+          }
+          setProfileDraft(prev => {
+            const updated = { ...prev, [field]: value };
+            setActiveProfile(updated);
+            return updated;
+          });
+          addToHistory(cmd, `Updated ${field}`);
+          break;
+        }
+  
+        case 'save': {
+          if (!isEditingProfile) {
+            addToHistory(cmd, 'Nothing to save. Use "edit profile" first.', true);
+            isError = true;
+            break;
+          }
+          try {
+            const token = localStorage.getItem('token');
+            const res = await axios.put(
+              `http://localhost:4000/api/users/${currentUser.username}`,
+              { display_name: profileDraft.display_name, bio: profileDraft.bio },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            setCurrentUser(res.data);
+            localStorage.setItem('user', JSON.stringify(res.data));
+            addToHistory(cmd, 'Profile updated successfully.');
+            setIsEditingProfile(false);
+            setProfileDraft(null);
+            setActiveProfile(null);
+          } catch (err) {
+            addToHistory(cmd, err.response?.data?.error || 'Failed to update profile', true);
+            isError = true;
+          }
+          break;
+        }
 
       case 'register':
         addToHistory(cmd, 'Redirecting to registration page...');
@@ -524,6 +614,8 @@ const TerminalForum = () => {
         if (activeTopic || activeProfile) {
           setActiveTopic(null);
           setActiveProfile(null);
+          setIsEditingProfile(false);
+          setProfileDraft(null);
           addToHistory(cmd, 'Side pane closed');
         } else {
           addToHistory(cmd, 'No pane is currently open');
@@ -632,7 +724,9 @@ const TerminalForum = () => {
               <div className={`${theme.accent} text-sm font-bold`}>
               {activeTopic
                   ? '┌─[ ARTICLE READER ]─────────────────────────┐'
-                  : '┌─[ USER PROFILE ]──────────────────────────┐'}
+                  : isEditingProfile
+                    ? '┌─[ EDIT PROFILE ]──────────────────────────┐'
+                    : '┌─[ USER PROFILE ]──────────────────────────┐'}
               </div>
             </div>
           </div>
@@ -666,6 +760,12 @@ const TerminalForum = () => {
                   {activeProfile.display_name || activeProfile.username}
                 </div>
 
+                {isEditingProfile && (
+                  <div className={`${theme.secondary} text-xs mb-2`}>
+                    Editable fields: display_name, bio
+                  </div>
+                )}
+
                 <div className="mb-4 space-y-1">
                   <div className={`${theme.secondary} text-sm`}>
                     <span className={theme.accent}>Username:</span> {activeProfile.username}
@@ -698,7 +798,7 @@ const TerminalForum = () => {
           {/* Side Pane Footer */}
           <div className={`${theme.bg} border-t border-gray-600 p-2`}>
             <div className={`${theme.secondary} text-xs text-center`}>
-            Type "close" to close {activeTopic ? 'reader' : 'profile'} pane
+            {isEditingProfile ? 'Type "save" to save changes or "close" to cancel' : `Type "close" to close ${activeTopic ? 'reader' : 'profile'} pane`}
             </div>
             <div className={`${theme.accent} text-sm text-center`}>
               └───────────────────────────────────────────┘
