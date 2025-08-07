@@ -122,6 +122,12 @@ const TerminalForum = () => {
   const [forumMode, setForumMode] = useState(false);
   const [forumPosts, setForumPosts] = useState([]);
   const [forumPage, setForumPage] = useState(1);
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [postTitle, setPostTitle] = useState('');
+  const [postContent, setPostContent] = useState('');
+  const [postStep, setPostStep] = useState(1);
+  const postTitleRef = useRef(null);
+  const postContentRef = useRef(null);
   const inputRef = useRef(null);
   const terminalRef = useRef(null);
   const navigate = useNavigate();
@@ -309,8 +315,49 @@ const TerminalForum = () => {
     }
   }, [history, bootText]);
 
+  useEffect(() => {
+    if (isCreatingPost) {
+      if (postStep === 1) {
+        postTitleRef.current?.focus();
+      } else {
+        postContentRef.current?.focus();
+      }
+    }
+  }, [isCreatingPost, postStep]);
+
   const addToHistory = (command, output, isError = false) => {
     setHistory(prev => [...prev, { command, output, isError, timestamp: new Date().toLocaleTimeString() }]);
+  };
+
+  const submitPost = async () => {
+    if (!postTitle.trim() || !postContent.trim()) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(
+        'http://localhost:4000/api/posts',
+        { title: postTitle, content: postContent },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const newTopic = {
+        id: res.data.id,
+        title: res.data.title,
+        author: currentUser.username,
+        content: res.data.content,
+        timestamp: new Date(res.data.timestamp).toLocaleString(),
+      };
+      setTopics(prev => [newTopic, ...prev]);
+      if (forumMode) {
+        setForumPosts(prev => [newTopic, ...prev]);
+      }
+      addToHistory('post', `Topic "${postTitle}" created successfully! ID: ${newTopic.id}`);
+      setIsCreatingPost(false);
+      setPostTitle('');
+      setPostContent('');
+      setPostStep(1);
+    } catch (err) {
+      addToHistory('post', err.response?.data?.error || 'Failed to create post', true);
+    }
   };
 
   /* Show who you are logged in as upon boot
@@ -470,41 +517,15 @@ const TerminalForum = () => {
             break;
           }
         
-          const title = prompt('Enter topic title:');
-          const content = prompt('Enter topic content:');
-          if (title && content) {
-            try {
-              const token = localStorage.getItem('token');
-              const res = await axios.post(
-                'http://localhost:4000/api/posts',
-                { title, content },
-                { headers: { Authorization: `Bearer ${token}` } }
-              );
-
-              const newTopic = {
-                id: res.data.id,
-                title: res.data.title,
-                author: currentUser.username,
-                content: res.data.content,
-                timestamp: new Date(res.data.timestamp).toLocaleString(),
-              };
-              setTopics(prev => [newTopic, ...prev]);
-              if (forumMode) {
-                setForumPosts(prev => [newTopic, ...prev]);
-              }
-              addToHistory(cmd, `Topic "${title}" created successfully! ID: ${newTopic.id}`);
-            } catch (err) {
-              addToHistory(
-                cmd,
-                err.response?.data?.error || 'Failed to create post',
-                true
-              );
-              isError = true;
-            }
-          } else {
-            addToHistory(cmd, 'Post creation cancelled', true);
-            isError = true;
-          }
+          setActiveTopic(null);
+          setActiveProfile(null);
+          setIsEditingProfile(false);
+          setProfileDraft(null);
+          setIsCreatingPost(true);
+          setPostTitle('');
+          setPostContent('');
+          setPostStep(1);
+          addToHistory(cmd, 'Opening post editor...');
           break;
         
 
@@ -681,6 +702,12 @@ const TerminalForum = () => {
           setForumPosts([]);
           setForumPage(1);
           addToHistory(cmd, 'Forum closed');
+        } else if (isCreatingPost) {
+          setIsCreatingPost(false);
+          setPostTitle('');
+          setPostContent('');
+          setPostStep(1);
+          addToHistory(cmd, 'Post creation cancelled');
         } else {
           addToHistory(cmd, 'No pane is currently open');
         }
@@ -725,7 +752,7 @@ const TerminalForum = () => {
   const paginatedForumPosts = forumPosts.slice((forumPage - 1) * 10, forumPage * 10);
   const forumTotalPages = Math.max(1, Math.ceil(forumPosts.length / 10));
 
-  const isPaneOpen = Boolean(activeTopic || activeProfile || forumMode);
+  const isPaneOpen = Boolean(activeTopic || activeProfile || forumMode || isCreatingPost);
 
   if (!bootComplete) {
     return (
@@ -783,8 +810,8 @@ const TerminalForum = () => {
       </div>
 
       {/* Side Pane */}
-      {(activeTopic || activeProfile || forumMode) && (
-        <div className="w-1/2 border-l border-gray-600 flex flex-col">
+      {(activeTopic || activeProfile || forumMode || isCreatingPost) && (
+        <div className="w-1/2 border-l border-gray-600 flex flex-col" onClick={e => e.stopPropagation()}>
           {/* Side Pane Header */}
           <div className={`${theme.bg} border-b border-gray-600 p-2`}>
             <div className="flex items-center justify-between">
@@ -795,7 +822,9 @@ const TerminalForum = () => {
                     ? (isEditingProfile
                         ? '┌─[ EDIT PROFILE ]──────────────────────────┐'
                         : '┌─[ USER PROFILE ]──────────────────────────┐')
-                    : '┌─[ FORUM ]──────────────────────────────────┐'}
+                        : isCreatingPost
+                        ? '┌─[ NEW POST ]────────────────────────────┐'
+                        : '┌─[ FORUM ]──────────────────────────────────┐'}
               </div>
             </div>
           </div>
@@ -861,6 +890,42 @@ const TerminalForum = () => {
                   </pre>
                 </div>
               </>
+              ) : isCreatingPost ? (
+                <>
+                  {postStep === 1 ? (
+                    <input
+                      ref={postTitleRef}
+                      type="text"
+                      value={postTitle}
+                      onChange={e => setPostTitle(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && postTitle.trim()) {
+                          e.preventDefault();
+                          setPostStep(2);
+                        }
+                      }}
+                      placeholder="Enter your post title..."
+                      className={`w-full bg-transparent border border-gray-700 p-2 text-sm outline-none ${theme.primary}`}
+                    />
+                  ) : (
+                    <div className="flex flex-col h-full">
+                      <div className={`${theme.accent} text-lg mb-2 border-b border-gray-700 pb-2`}>{postTitle}</div>
+                      <textarea
+                        ref={postContentRef}
+                        value={postContent}
+                        onChange={e => setPostContent(e.target.value)}
+                        onKeyDown={async e => {
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            await submitPost();
+                          }
+                        }}
+                        placeholder="Start writing your post..."
+                        className={`flex-1 bg-transparent border border-gray-700 p-2 text-sm outline-none resize-none ${theme.primary}`}
+                      />
+                    </div>
+                  )}
+                </>
               ) : (
                 <>
                   <div className={`${theme.secondary} text-xs mb-2`}>
@@ -895,7 +960,9 @@ const TerminalForum = () => {
                 ? 'Type "close" to close reader pane'
                 : activeProfile
                   ? (isEditingProfile ? 'Type "save" to save changes or "close" to cancel' : 'Type "close" to close profile pane')
-                  : 'Use "search <text>" to filter or "page <n>" to navigate. Type "close" to exit forum'}
+                  : isCreatingPost
+                    ? 'Press Ctrl+Enter to submit or type "close" to cancel'
+                    : 'Use "search <text>" to filter or "page <n>" to navigate. Type "close" to exit forum'}
             </div>
             <div className={`${theme.accent} text-sm text-center`}>
               └───────────────────────────────────────────┘
