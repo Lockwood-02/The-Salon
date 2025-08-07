@@ -667,6 +667,9 @@ const TerminalForum = () => {
 
       case 'register':
         addToHistory(cmd, 'Redirecting to registration page...');
+        setCurrentUser(null);
+            localStorage.removeItem("user"); // ✅ clear persisted login
+            localStorage.removeItem("token");
         navigate('/register');
         break;
 
