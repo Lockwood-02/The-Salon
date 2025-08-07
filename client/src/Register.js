@@ -82,12 +82,17 @@ export default function Register() {
             { prompt: "Creating account...", value: "" },
             { prompt: "Success", value: `Welcome ${res.data.display_name || res.data.username}!` },
           ]);
-          setTimeout(() => navigate("/"), 2000);
+          setTimeout(() => navigate('/login'), 2000);
         } catch (err) {
           setMessages((prev) => [
             ...prev,
             { prompt: "Error", value: err.response?.data?.error || err.message },
           ]);
+
+          // Reset form and go back to username input
+          setCurrentField("username");
+          setForm({ username: "", display_name: "", email: "", password: "" });
+          setInputValue("");
         }
       }
     }

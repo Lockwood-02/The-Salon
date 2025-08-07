@@ -325,6 +325,31 @@ const TerminalForum = () => {
     }
   }, [isCreatingPost, postStep]);
 
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        if (activeTopic || activeProfile || forumMode || isCreatingPost) {
+          setActiveTopic(null);
+          setActiveProfile(null);
+          setIsEditingProfile(false);
+          setProfileDraft(null);
+          setForumMode(false);
+          setForumPosts([]);
+          setForumPage(1);
+          setIsCreatingPost(false);
+          setPostTitle('');
+          setPostContent('');
+          setPostStep(1);
+          addToHistory('esc', 'Closed active pane via Esc key');
+          inputRef.current?.focus();
+        }
+      }
+    };
+  
+    document.addEventListener('keydown', handleEsc);
+    return () => document.removeEventListener('keydown', handleEsc);
+  }, [activeTopic, activeProfile, forumMode, isCreatingPost]);
+
   const addToHistory = (command, output, isError = false) => {
     setHistory(prev => [...prev, { command, output, isError, timestamp: new Date().toLocaleTimeString() }]);
   };
@@ -351,10 +376,12 @@ const TerminalForum = () => {
         setForumPosts(prev => [newTopic, ...prev]);
       }
       addToHistory('post', `Topic "${postTitle}" created successfully! ID: ${newTopic.id}`);
+      // Move cursor to main terminal 
       setIsCreatingPost(false);
       setPostTitle('');
       setPostContent('');
       setPostStep(1);
+      inputRef.current?.focus();
     } catch (err) {
       addToHistory('post', err.response?.data?.error || 'Failed to create post', true);
     }
@@ -642,12 +669,18 @@ const TerminalForum = () => {
 
       case 'register':
         addToHistory(cmd, 'Redirecting to registration page...');
+        setCurrentUser(null);
+            localStorage.removeItem("user"); // ✅ clear persisted login
+            localStorage.removeItem("token");
         navigate('/register');
         break;
 
       case 'login':
         if (!args[0]) {
           addToHistory(cmd, 'Redirecting to login page...');
+          setCurrentUser(null);
+            localStorage.removeItem("user"); // ✅ clear persisted login
+            localStorage.removeItem("token");
           navigate('/login');
             break;
         }
@@ -670,6 +703,23 @@ const TerminalForum = () => {
             setCurrentUser(null);
             localStorage.removeItem("user"); // ✅ clear persisted login
             localStorage.removeItem("token");
+            if (activeTopic) {
+              setActiveTopic(null);
+            } else if (activeProfile) {
+              setActiveProfile(null);
+              setIsEditingProfile(false);
+              setProfileDraft(null);
+            } else if (forumMode) {
+              setForumMode(false);
+              setForumPosts([]);
+              setForumPage(1);
+            } else if (isCreatingPost) {
+              setIsCreatingPost(false);
+              setPostTitle('');
+              setPostContent('');
+              setPostStep(1);
+            } 
+            break;
           } else {
             addToHistory(cmd, 'You are not logged in', true);
           }
@@ -939,10 +989,10 @@ const TerminalForum = () => {
                   </div>
                   {paginatedForumPosts.length > 0 ? (
                     paginatedForumPosts.map(post => (
-                      <div key={post.id} className={`grid grid-cols-[40px_auto_80px_150px] gap-2 text-sm border-b border-gray-700 py-1`}>
+                      <div key={post.id} className={`grid grid-cols-[40px_auto_100px_150px] gap-2 text-sm border-b border-gray-700 py-1`}>
                         <div className={theme.secondary}>{post.id}</div>
                         <div className={`${theme.primary} truncate`}>{post.title}</div>
-                        <div className={theme.secondary}>{post.author}</div>
+                        <div className={`${theme.secondary} truncate`}>{post.author}</div>
                         <div className={theme.secondary}>{post.timestamp}</div>
                       </div>
                     ))
