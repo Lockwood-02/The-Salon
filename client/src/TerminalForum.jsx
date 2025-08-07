@@ -119,6 +119,15 @@ const TerminalForum = () => {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileDraft, setProfileDraft] = useState(null);
   const editableFields = ['display_name', 'bio'];
+  const [forumMode, setForumMode] = useState(false);
+  const [forumPosts, setForumPosts] = useState([]);
+  const [forumPage, setForumPage] = useState(1);
+  const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [postTitle, setPostTitle] = useState('');
+  const [postContent, setPostContent] = useState('');
+  const [postStep, setPostStep] = useState(1);
+  const postTitleRef = useRef(null);
+  const postContentRef = useRef(null);
   const inputRef = useRef(null);
   const terminalRef = useRef(null);
   const navigate = useNavigate();
@@ -306,8 +315,49 @@ const TerminalForum = () => {
     }
   }, [history, bootText]);
 
+  useEffect(() => {
+    if (isCreatingPost) {
+      if (postStep === 1) {
+        postTitleRef.current?.focus();
+      } else {
+        postContentRef.current?.focus();
+      }
+    }
+  }, [isCreatingPost, postStep]);
+
   const addToHistory = (command, output, isError = false) => {
     setHistory(prev => [...prev, { command, output, isError, timestamp: new Date().toLocaleTimeString() }]);
+  };
+
+  const submitPost = async () => {
+    if (!postTitle.trim() || !postContent.trim()) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(
+        'http://localhost:4000/api/posts',
+        { title: postTitle, content: postContent },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const newTopic = {
+        id: res.data.id,
+        title: res.data.title,
+        author: currentUser.username,
+        content: res.data.content,
+        timestamp: new Date(res.data.timestamp).toLocaleString(),
+      };
+      setTopics(prev => [newTopic, ...prev]);
+      if (forumMode) {
+        setForumPosts(prev => [newTopic, ...prev]);
+      }
+      addToHistory('post', `Topic "${postTitle}" created successfully! ID: ${newTopic.id}`);
+      setIsCreatingPost(false);
+      setPostTitle('');
+      setPostContent('');
+      setPostStep(1);
+    } catch (err) {
+      addToHistory('post', err.response?.data?.error || 'Failed to create post', true);
+    }
   };
 
   /* Show who you are logged in as upon boot
@@ -331,6 +381,7 @@ const TerminalForum = () => {
           'Available Commands:\n' +
           '  help          - Show this help message\n' +
           '  topics        - List all forum topics\n' +
+          '  forum        - Opens the forum side panel\n' +
           '  read [id]     - Read a specific topic by ID\n' +
           '  post          - Create a new forum post\n' +
           '  members       - List community members\n' +
@@ -385,6 +436,52 @@ const TerminalForum = () => {
         addToHistory(cmd, `Available Color Themes:\n${themeList}\n\nUsage: color [theme_name]`);
         break;
 
+      case 'forum':
+        setActiveProfile(null);
+        setActiveTopic(null);
+        setIsEditingProfile(false);
+        setProfileDraft(null);
+        setForumMode(true);
+        setForumPosts(topics);
+        setForumPage(1);
+        addToHistory(cmd, 'Entering forum mode. Use "search <text>" to filter, "page <n>" to navigate, or "read <id>" to view a post.');
+        break;
+
+      case 'search':
+        if (!forumMode) {
+          addToHistory(cmd, 'Search is only available in forum mode', true);
+          isError = true;
+          break;
+        }
+        if (!args.length) {
+          addToHistory(cmd, 'Usage: search <text>', true);
+          isError = true;
+          break;
+        }
+        const query = args.join(' ').toLowerCase();
+        const filtered = topics.filter(t => t.title.toLowerCase().includes(query));
+        setForumPosts(filtered);
+        setForumPage(1);
+        addToHistory(cmd, `Found ${filtered.length} post${filtered.length === 1 ? '' : 's'} matching "${query}"`);
+        break;
+
+      case 'page':
+        if (!forumMode) {
+          addToHistory(cmd, 'Page command is only available in forum mode', true);
+          isError = true;
+          break;
+        }
+        const pageNum = parseInt(args[0]);
+        const totalPages = Math.max(1, Math.ceil(forumPosts.length / 10));
+        if (!pageNum || pageNum < 1 || pageNum > totalPages) {
+          addToHistory(cmd, `Invalid page number. Enter a number between 1 and ${totalPages}`, true);
+          isError = true;
+        } else {
+          setForumPage(pageNum);
+          addToHistory(cmd, `Switched to page ${pageNum}`);
+        }
+        break;
+
       case 'topics':
         const topicList = topics.map(t => 
           `[${t.id}] ${t.title} - by ${t.author} (${t.timestamp})`
@@ -420,38 +517,15 @@ const TerminalForum = () => {
             break;
           }
         
-          const title = prompt('Enter topic title:');
-          const content = prompt('Enter topic content:');
-          if (title && content) {
-            try {
-              const token = localStorage.getItem('token');
-              const res = await axios.post(
-                'http://localhost:4000/api/posts',
-                { title, content },
-                { headers: { Authorization: `Bearer ${token}` } }
-              );
-
-              const newTopic = {
-                id: res.data.id,
-                title: res.data.title,
-                author: currentUser.username,
-                content: res.data.content,
-                timestamp: new Date(res.data.timestamp).toLocaleString(),
-              };
-              setTopics(prev => [newTopic, ...prev]);
-              addToHistory(cmd, `Topic "${title}" created successfully! ID: ${newTopic.id}`);
-            } catch (err) {
-              addToHistory(
-                cmd,
-                err.response?.data?.error || 'Failed to create post',
-                true
-              );
-              isError = true;
-            }
-          } else {
-            addToHistory(cmd, 'Post creation cancelled', true);
-            isError = true;
-          }
+          setActiveTopic(null);
+          setActiveProfile(null);
+          setIsEditingProfile(false);
+          setProfileDraft(null);
+          setIsCreatingPost(true);
+          setPostTitle('');
+          setPostContent('');
+          setPostStep(1);
+          addToHistory(cmd, 'Opening post editor...');
           break;
         
 
@@ -611,12 +685,29 @@ const TerminalForum = () => {
         break;
 
       case 'close':
-        if (activeTopic || activeProfile) {
+        if (activeTopic) {
           setActiveTopic(null);
+          if (forumMode) {
+            addToHistory(cmd, 'Reader closed');
+          } else {
+            addToHistory(cmd, 'Side pane closed');
+          }
+        } else if (activeProfile) {
           setActiveProfile(null);
           setIsEditingProfile(false);
           setProfileDraft(null);
           addToHistory(cmd, 'Side pane closed');
+        } else if (forumMode) {
+          setForumMode(false);
+          setForumPosts([]);
+          setForumPage(1);
+          addToHistory(cmd, 'Forum closed');
+        } else if (isCreatingPost) {
+          setIsCreatingPost(false);
+          setPostTitle('');
+          setPostContent('');
+          setPostStep(1);
+          addToHistory(cmd, 'Post creation cancelled');
         } else {
           addToHistory(cmd, 'No pane is currently open');
         }
@@ -658,7 +749,10 @@ const TerminalForum = () => {
     return `${name}@terminal-forum:~$ `;
   };
 
-  const isPaneOpen = Boolean(activeTopic || activeProfile);
+  const paginatedForumPosts = forumPosts.slice((forumPage - 1) * 10, forumPage * 10);
+  const forumTotalPages = Math.max(1, Math.ceil(forumPosts.length / 10));
+
+  const isPaneOpen = Boolean(activeTopic || activeProfile || forumMode || isCreatingPost);
 
   if (!bootComplete) {
     return (
@@ -716,17 +810,21 @@ const TerminalForum = () => {
       </div>
 
       {/* Side Pane */}
-      {(activeTopic || activeProfile) && (
-        <div className="w-1/2 border-l border-gray-600 flex flex-col">
+      {(activeTopic || activeProfile || forumMode || isCreatingPost) && (
+        <div className="w-1/2 border-l border-gray-600 flex flex-col" onClick={e => e.stopPropagation()}>
           {/* Side Pane Header */}
           <div className={`${theme.bg} border-b border-gray-600 p-2`}>
             <div className="flex items-center justify-between">
               <div className={`${theme.accent} text-sm font-bold`}>
               {activeTopic
                   ? '┌─[ ARTICLE READER ]─────────────────────────┐'
-                  : isEditingProfile
-                    ? '┌─[ EDIT PROFILE ]──────────────────────────┐'
-                    : '┌─[ USER PROFILE ]──────────────────────────┐'}
+                  : activeProfile
+                    ? (isEditingProfile
+                        ? '┌─[ EDIT PROFILE ]──────────────────────────┐'
+                        : '┌─[ USER PROFILE ]──────────────────────────┐')
+                        : isCreatingPost
+                        ? '┌─[ NEW POST ]────────────────────────────┐'
+                        : '┌─[ FORUM ]──────────────────────────────────┐'}
               </div>
             </div>
           </div>
@@ -754,7 +852,7 @@ const TerminalForum = () => {
                   </pre>
                 </div>
               </>
-            ) : (
+            ) : activeProfile ? (
               <>
                 <div className={`${theme.accent} text-lg mb-2 border-b border-gray-700 pb-2`}>
                   {activeProfile.display_name || activeProfile.username}
@@ -792,13 +890,79 @@ const TerminalForum = () => {
                   </pre>
                 </div>
               </>
+              ) : isCreatingPost ? (
+                <>
+                  {postStep === 1 ? (
+                    <input
+                      ref={postTitleRef}
+                      type="text"
+                      value={postTitle}
+                      onChange={e => setPostTitle(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && postTitle.trim()) {
+                          e.preventDefault();
+                          setPostStep(2);
+                        }
+                      }}
+                      placeholder="Enter your post title..."
+                      className={`w-full bg-transparent border border-gray-700 p-2 text-sm outline-none ${theme.primary}`}
+                    />
+                  ) : (
+                    <div className="flex flex-col h-full">
+                      <div className={`${theme.accent} text-lg mb-2 border-b border-gray-700 pb-2`}>{postTitle}</div>
+                      <textarea
+                        ref={postContentRef}
+                        value={postContent}
+                        onChange={e => setPostContent(e.target.value)}
+                        onKeyDown={async e => {
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            await submitPost();
+                          }
+                        }}
+                        placeholder="Start writing your post..."
+                        className={`flex-1 bg-transparent border border-gray-700 p-2 text-sm outline-none resize-none ${theme.primary}`}
+                      />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className={`${theme.secondary} text-xs mb-2`}>
+                    Page {forumPage} of {forumTotalPages}
+                  </div>
+                  <div className={`grid grid-cols-[40px_auto_80px_150px] gap-2 text-sm ${theme.accent} border-b border-gray-700 pb-1`}>
+                    <div>ID</div>
+                    <div>Title</div>
+                    <div>Author</div>
+                    <div>Date</div>
+                  </div>
+                  {paginatedForumPosts.length > 0 ? (
+                    paginatedForumPosts.map(post => (
+                      <div key={post.id} className={`grid grid-cols-[40px_auto_80px_150px] gap-2 text-sm border-b border-gray-700 py-1`}>
+                        <div className={theme.secondary}>{post.id}</div>
+                        <div className={`${theme.primary} truncate`}>{post.title}</div>
+                        <div className={theme.secondary}>{post.author}</div>
+                        <div className={theme.secondary}>{post.timestamp}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className={`${theme.secondary} text-sm mt-2`}>No posts found.</div>
+                  )}
+                </>
             )}
           </div>
           
           {/* Side Pane Footer */}
           <div className={`${theme.bg} border-t border-gray-600 p-2`}>
             <div className={`${theme.secondary} text-xs text-center`}>
-            {isEditingProfile ? 'Type "save" to save changes or "close" to cancel' : `Type "close" to close ${activeTopic ? 'reader' : 'profile'} pane`}
+            {activeTopic
+                ? 'Type "close" to close reader pane'
+                : activeProfile
+                  ? (isEditingProfile ? 'Type "save" to save changes or "close" to cancel' : 'Type "close" to close profile pane')
+                  : isCreatingPost
+                    ? 'Press Ctrl+Enter to submit or type "close" to cancel'
+                    : 'Use "search <text>" to filter or "page <n>" to navigate. Type "close" to exit forum'}
             </div>
             <div className={`${theme.accent} text-sm text-center`}>
               └───────────────────────────────────────────┘
