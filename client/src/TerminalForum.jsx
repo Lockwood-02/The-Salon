@@ -376,10 +376,12 @@ const TerminalForum = () => {
         setForumPosts(prev => [newTopic, ...prev]);
       }
       addToHistory('post', `Topic "${postTitle}" created successfully! ID: ${newTopic.id}`);
+      // Move cursor to main terminal 
       setIsCreatingPost(false);
       setPostTitle('');
       setPostContent('');
       setPostStep(1);
+      inputRef.current?.focus();
     } catch (err) {
       addToHistory('post', err.response?.data?.error || 'Failed to create post', true);
     }
