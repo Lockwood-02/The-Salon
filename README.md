@@ -35,7 +35,7 @@ exit             Exit the terminal
 ```
 
 ## Getting Started
-First, go to each of the project folders (client and server) and run the following commands:
+After cloning, go to each of the project folders (client and server) and run the following commands:
 
 1. Install dependencies:
    ```bash
