@@ -2,11 +2,22 @@ import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
+// const LOGIN_ART = `
+// ██╗      ██████╗  ██████╗ ██╗███╗   ██╗
+// ██║     ██╔═══██╗██╔════╝ ██║████╗  ██║
+// ██║     ██║   ██║██║  ███╗██║██╔██╗ ██║
+// ██║     ██║   ██║██║   ██║██║██║╚██╗██║
+// ███████╗╚██████╔╝╚██████╔╝██║██║ ╚████║
+// ╚══════╝ ╚═════╝  ╚═════╝ ╚═╝╚═╝  ╚═══╝
+// `;
+
 export default function Login() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [messages, setMessages] = useState([]);
   const [currentField, setCurrentField] = useState("username");
   const [inputValue, setInputValue] = useState("");
+  const [bootText, setBootText] = useState('');
+  const [bootComplete, setBootComplete] = useState(false);
   const inputRef = useRef(null);
   const navigate = useNavigate();
   const [exitPrompt, setExitPrompt] = useState(false);
@@ -26,12 +37,65 @@ export default function Login() {
   };
 
   useEffect(() => {
-    inputRef.current?.focus();
+    if (currentField) {
+      inputRef.current?.focus();
+    }
   }, [currentField]);
+
+  useEffect(() => {
+      if (bootComplete && inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, [bootComplete]);
+
+  useEffect(() => {
+  let i = 0;
+  let isCancelled = false;
+  const timers = [];
+
+  const lines = [
+    'Initializing login module...',
+    'Connecting to auth server...',
+    'System ready.',
+    '',
+    '██╗      ██████╗  ██████╗ ██╗███╗   ██╗',
+    '██║     ██╔═══██╗██╔════╝ ██║████╗  ██║',
+    '██║     ██║   ██║██║  ███╗██║██╔██╗ ██║',
+    '██║     ██║   ██║██║   ██║██║██║╚██╗██║',
+    '███████╗╚██████╔╝╚██████╔╝██║██║ ╚████║',
+    '╚══════╝ ╚═════╝  ╚═════╝ ╚═╝╚═╝  ╚═══╝',
+    '',
+  ];
+
+  const typeLine = () => {
+    if (isCancelled) return;
+
+    if (i < lines.length - 1) { // mirror TerminalForum's boundary
+      setBootText(prev => prev + lines[i] + '\n');
+      i++;
+      const t = setTimeout(typeLine, i < 3 ? 200 : 150); // whatever cadence you like
+      timers.push(t);
+    } else {
+      const t = setTimeout(() => {
+        if (isCancelled) return;
+        setBootComplete(true);
+        inputRef.current?.focus();
+      }, 500);
+      timers.push(t);
+    }
+  };
+
+  typeLine();
+
+  return () => {
+    isCancelled = true;
+    timers.forEach(clearTimeout);
+  };
+}, []);
 
   const handleKeyDown = async (e) => {
     // ESCAPE initiates exit confirmation
-    if (e.key === "Escape") {
+    if (e.key === "Escape" && !exitPrompt && currentField) {
       setExitPrompt(true);
       setMessages((prev) => [
         ...prev,
@@ -39,6 +103,8 @@ export default function Login() {
       ]);
       return;
     }
+
+    
 
     // Exit confirmation handling
     if (exitPrompt) {
@@ -80,6 +146,8 @@ export default function Login() {
               value: `Welcome back, ${res.data.user.display_name || res.data.user.username}!`,
             },
           ]);
+          setCurrentField(null);
+          setExitPrompt(false);
           setTimeout(() => navigate("/"), 2000);
         } catch (err) {
           setMessages((prev) => [
@@ -95,17 +163,31 @@ export default function Login() {
           setCurrentField("username");
           setForm({ username: "", password: "" });
           setInputValue("");
+          setExitPrompt(false);
         }
       }
     }
   };
 
+  if (!bootComplete) {
+    return (
+      <div className={`h-screen ${theme.bg} ${theme.primary} font-mono p-4 overflow-hidden`}>
+        <pre className="whitespace-pre-wrap text-sm leading-tight">
+          {bootText}
+        </pre>
+        <div className={`inline-block w-2 h-4 ${theme.cursor} animate-pulse ml-1`}></div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`h-screen ${theme.bg} ${theme.primary} font-mono p-6`}
-      onClick={() => inputRef.current?.focus()}
+      className={`h-screen ${theme.bg} ${theme.primary} font-mono p-4`}
+      onClick={() => currentField && inputRef.current?.focus()}
     >
-      <pre className="text-lg mb-4">{`*** LOGIN TO THE SALON ***\n`}</pre>
+      <pre className="whitespace-pre-wrap text-sm leading-tight font-mono mb-4">
+        {bootText}
+      </pre>
 
       {messages.map((msg, i) => (
         <div key={i} className="mb-2">
