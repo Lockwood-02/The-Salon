@@ -86,6 +86,9 @@ CREATE TABLE IF NOT EXISTS posts (
 );
 ```
 
+### If you run into a server error
+There is a common error in the authentication of the 'postgres' user. If this happens, please follow the guidance of this Stack Overflow post: https://stackoverflow.com/questions/55038942/fatal-password-authentication-failed-for-user-postgres-postgresql-11-with-pg
+
 ## Development Goals
 
 The Salon aims to provide a nostalgic command-line experience for modern web discussions. It is built with React and Tailwind CSS and currently stores all data locally in memory. Future iterations may include persistent storage, authentication, and networked features to turn it into a fully functional community platform.
@@ -94,8 +97,6 @@ The Salon aims to provide a nostalgic command-line experience for modern web dis
 
 
 ## Planned Features
-
-Add your ideas here. Potential improvements include:
 
 - Persistent user accounts and authentication [CHECK]
 - Server‑side storage of forum topics [CHECK]
