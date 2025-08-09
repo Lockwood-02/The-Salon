@@ -404,28 +404,73 @@ const TerminalForum = () => {
 
     switch (command) {
       case 'help':
-        addToHistory(cmd, 
+        if (args[0] === '-a') {
+          addToHistory(cmd, 
           'Available Commands:\n' +
           '  help          - Show this help message\n' +
           '  topics        - List all forum topics\n' +
-          '  forum        - Opens the forum side panel\n' +
+          '  forum         - Opens the forum side panel\n' +
           '  read [id]     - Read a specific topic by ID\n' +
           '  post          - Create a new forum post\n' +
           '  members       - List community members\n' +
           '  visit [user]  - View a user\'s profile\n' +
           '  edit profile  - Edit your profile\n' +
-          '  register       - Register to the system\n' +
-          '  login [user]  - Login to the system\n' +
+          '  register      - Register to the system\n' +
+          '  login         - Login to the system\n' +
           '  logout        - Logout from the system\n' +
           '  whoami        - Show current user\n' +
           '  sound [on|off] - Toggle sound effects\n' +
           '  color [theme]  - Change terminal color theme\n' +
-          '  themes         - List available color themes\n' +
+          '  themes        - List available color themes\n' +
           '  clear         - Clear terminal history\n' +
           '  close         - Close the article viewer\n' +
           '  save          - Save profile changes (edit mode)\n' +
           '  exit          - Exit the terminal'
         );
+        } else if (args[0] === '-f') { // Forum commands
+          addToHistory(cmd, 
+          'Available Commands:\n' +
+          '  forum         - Opens the forum side panel\n' +
+          '  read [id]     - Read a specific topic by ID\n' +
+          '  post          - Create a new forum post\n' +
+          '  topics        - List all forum topics\n' +
+          '  close         - Close the article viewer\n'
+        );
+        } else if (args[0] === '-p') { // Profile commands
+          addToHistory(cmd, 
+          'Available Commands:\n' +
+          '  register      - Register to the system\n' +
+          '  login         - Login to the system\n' +
+          '  visit [user]  - View a user\'s profile\n' +
+          '  edit profile  - Edit your profile\n' +
+          '  logout        - Logout from the system\n' +
+          '  whoami        - Show current user\n' +
+          '  members       - List community members\n' +
+          '  save          - Save profile changes (edit mode)\n'
+        );
+        } else if (args[0] === '-s') { // System commands
+          addToHistory(cmd, 
+          'Available Commands:\n' +
+          '  sound [on|off] - Toggle sound effects\n' +
+          '  color [theme]  - Change terminal color theme\n' +
+          '  themes        - List available color themes\n' +
+          '  clear         - Clear terminal history\n' +
+          '  close         - Close the article viewer\n' +
+          '  exit          - Exit the terminal'
+        );
+        } else { // Basics commands
+          addToHistory(cmd, 
+          'Available Commands:\n' +
+          '  help          - Show this help message\n' +
+          '  help -f       - Show forum commands | topics, forum, reading and posting\n' +
+          '  help -p       - Show profile & account commands | login, register, profile management\n' +
+          '  help -s       - Show system commands | sound, color, themes, clear, exit\n' +
+          '\n' +
+          '  help -a       - Show all commands' 
+        );
+        }
+
+        
         break;
 
       case 'sound':
