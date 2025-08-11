@@ -916,8 +916,18 @@ const TerminalForum = () => {
               setPostTitle('');
               setPostContent('');
               setPostStep(1);
+            } else if (newsMode) {
+              setNewsMode(false);
+              setNewsPosts([]);
+              setNewsPage(1);
+              addToHistory(cmd, 'News closed');
+            } else if (isCreatingNews) {
+              setIsCreatingNews(false);
+              setNewsTitle('');
+              setNewsContent('');
+              setNewsStep(1);
+              addToHistory(cmd, 'Article creation cancelled');
             }
-            break;
           } else {
             addToHistory(cmd, 'You are not logged in', true);
           }
