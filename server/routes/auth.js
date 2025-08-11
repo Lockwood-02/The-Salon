@@ -26,11 +26,11 @@ router.post("/register", async (req, res) => {
     const now = new Date().toISOString();
 
     const result = await pool.query(
-      `INSERT INTO users 
-        (username, email, password_hash, display_name, role, status, bio, join_date, last_login, is_active, created_at, updated_at) 
-       VALUES 
+      `INSERT INTO users
+        (username, email, password_hash, display_name, role, status, bio, join_date, last_login, is_active, created_at, updated_at)
+       VALUES
         ($1, $2, $3, $4, 'user', 'active', '', $5, NULL, true, $5, $5)
-       RETURNING id, username, email, display_name`,
+       RETURNING id, username, email, display_name, role`,
       [username, email, password_hash, display_name, now]
     );
 
@@ -63,7 +63,7 @@ router.post("/login", async (req, res) => {
       user.id,
     ]);
 
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: "1h" });
 
     res.json({
       token,
@@ -72,6 +72,7 @@ router.post("/login", async (req, res) => {
         username: user.username,
         display_name: user.display_name,
         email: user.email,
+        role: user.role,
       },
     });
   } catch (err) {

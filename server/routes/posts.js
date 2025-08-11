@@ -29,6 +29,10 @@ router.post('/', auth, async (req, res) => {
     return res.status(400).json({ error: 'Title and content are required' });
   }
 
+  if (!['creator', 'admin'].includes(req.userRole)) {
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+
   try {
     const userRes = await pool.query('SELECT username FROM users WHERE id = $1', [req.userId]);
     if (userRes.rows.length === 0) {
