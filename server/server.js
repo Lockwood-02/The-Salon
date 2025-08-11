@@ -11,6 +11,8 @@ const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
 const postRoutes = require('./routes/posts');
 app.use('/api/posts', postRoutes);
+const newsRoutes = require('./routes/news');
+app.use('/api/news', newsRoutes);
 const userRoutes = require('./routes/users');
 app.use('/api/users', userRoutes);
 const adminRoutes = require('./routes/admin');

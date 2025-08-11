@@ -122,12 +122,23 @@ const TerminalForum = () => {
   const [forumMode, setForumMode] = useState(false);
   const [forumPosts, setForumPosts] = useState([]);
   const [forumPage, setForumPage] = useState(1);
+  const [newsMode, setNewsMode] = useState(false);
+  const [newsPosts, setNewsPosts] = useState([]);
+  const [newsPage, setNewsPage] = useState(1);
+  const [newsArticles, setNewsArticles] = useState([]);
+  const [activeNews, setActiveNews] = useState(null);
   const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [isCreatingNews, setIsCreatingNews] = useState(false);
   const [postTitle, setPostTitle] = useState('');
   const [postContent, setPostContent] = useState('');
   const [postStep, setPostStep] = useState(1);
+  const [newsTitle, setNewsTitle] = useState('');
+  const [newsContent, setNewsContent] = useState('');
+  const [newsStep, setNewsStep] = useState(1);
   const postTitleRef = useRef(null);
   const postContentRef = useRef(null);
+  const newsTitleRef = useRef(null);
+  const newsContentRef = useRef(null);
   const inputRef = useRef(null);
   const terminalRef = useRef(null);
   const navigate = useNavigate();
@@ -268,6 +279,25 @@ const TerminalForum = () => {
   }, []);
 
   useEffect(() => {
+    const fetchNews = async () => {
+      try {
+        const res = await axios.get('http://localhost:4000/api/news');
+        const posts = res.data.map(p => ({
+          id: p.id,
+          title: p.title,
+          author: p.author,
+          content: p.content,
+          timestamp: new Date(p.timestamp).toLocaleString(),
+        }));
+        setNewsArticles(posts);
+      } catch (err) {
+        console.error('Failed to load news', err);
+      }
+    };
+    fetchNews();
+  }, []);
+
+  useEffect(() => {
     let i = 0;
     let isCancelled = false;
 
@@ -322,33 +352,47 @@ const TerminalForum = () => {
       } else {
         postContentRef.current?.focus();
       }
+    } else if (isCreatingNews) {
+      if (newsStep === 1) {
+        newsTitleRef.current?.focus();
+      } else {
+        newsContentRef.current?.focus();
+      }
     }
-  }, [isCreatingPost, postStep]);
+  }, [isCreatingPost, postStep, isCreatingNews, newsStep]);
 
   useEffect(() => {
     const handleEsc = (e) => {
       if (e.key === 'Escape') {
-        if (activeTopic || activeProfile || forumMode || isCreatingPost) {
+        if (activeTopic || activeProfile || forumMode || isCreatingPost || newsMode || isCreatingNews || activeNews) {
           setActiveTopic(null);
+          setActiveNews(null);
           setActiveProfile(null);
           setIsEditingProfile(false);
           setProfileDraft(null);
           setForumMode(false);
           setForumPosts([]);
           setForumPage(1);
+          setNewsMode(false);
+          setNewsPosts([]);
+          setNewsPage(1);
           setIsCreatingPost(false);
           setPostTitle('');
           setPostContent('');
           setPostStep(1);
+          setIsCreatingNews(false);
+          setNewsTitle('');
+          setNewsContent('');
+          setNewsStep(1);
           addToHistory('esc', 'Closed active pane via Esc key');
           inputRef.current?.focus();
         }
       }
     };
-  
+
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [activeTopic, activeProfile, forumMode, isCreatingPost]);
+  }, [activeTopic, activeProfile, forumMode, isCreatingPost, newsMode, isCreatingNews, activeNews]);
 
   const addToHistory = (command, output, isError = false) => {
     setHistory(prev => [...prev, { command, output, isError, timestamp: new Date().toLocaleTimeString() }]);
@@ -387,6 +431,38 @@ const TerminalForum = () => {
     }
   };
 
+  const submitNews = async () => {
+    if (!newsTitle.trim() || !newsContent.trim()) return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(
+        'http://localhost:4000/api/news',
+        { title: newsTitle, content: newsContent },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const newArticle = {
+        id: res.data.id,
+        title: res.data.title,
+        author: currentUser.username,
+        content: res.data.content,
+        timestamp: new Date(res.data.timestamp).toLocaleString(),
+      };
+      setNewsArticles(prev => [newArticle, ...prev]);
+      if (newsMode) {
+        setNewsPosts(prev => [newArticle, ...prev]);
+      }
+      addToHistory('post news', `Article "${newsTitle}" created successfully! ID: ${newArticle.id}`);
+      setIsCreatingNews(false);
+      setNewsTitle('');
+      setNewsContent('');
+      setNewsStep(1);
+      inputRef.current?.focus();
+    } catch (err) {
+      addToHistory('post news', err.response?.data?.error || 'Failed to create article', true);
+    }
+  };
+
   /* Show who you are logged in as upon boot
   useEffect(() => {
     if (currentUser) {
@@ -411,8 +487,11 @@ const TerminalForum = () => {
           '  help          - Show this help message\n' +
           '  topics        - List all forum topics\n' +
           '  forum         - Opens the forum side panel\n' +
+          '  news          - Opens the news side panel\n' +
           '  read [id]     - Read a specific topic by ID\n' +
+          '  read news [id]- Read a news article by ID\n' +
           '  post          - Create a new forum post\n' +
+          '  post news     - Create a news article\n' +
           '  members       - List community members\n' +
           '  visit [user]  - View a user\'s profile\n' +
           '  edit profile  - Edit your profile\n' +
@@ -429,12 +508,15 @@ const TerminalForum = () => {
           '  save          - Save profile changes (edit mode)\n' +
           '  exit          - Exit the terminal'
         );
-        } else if (args[0] === '-f') { // Forum commands
-          addToHistory(cmd, 
+        } else if (args[0] === '-f') { // Forum/News commands
+          addToHistory(cmd,
           'Available Commands:\n' +
           '  forum         - Opens the forum side panel\n' +
+          '  news          - Opens the news side panel\n' +
           '  read [id]     - Read a specific topic by ID\n' +
+          '  read news [id]- Read a news article by ID\n' +
           '  post          - Create a new forum post\n' +
+          '  post news     - Create a news article\n' +
           '  topics        - List all forum topics\n' +
           '  close         - Close the article viewer\n'
         );
@@ -513,12 +595,31 @@ const TerminalForum = () => {
       case 'forum':
         setActiveProfile(null);
         setActiveTopic(null);
+        setActiveNews(null);
         setIsEditingProfile(false);
         setProfileDraft(null);
+        setNewsMode(false);
+        setNewsPosts([]);
+        setNewsPage(1);
         setForumMode(true);
         setForumPosts(topics);
         setForumPage(1);
         addToHistory(cmd, 'Entering forum mode. Use "search <text>" to filter, "page <n>" to navigate, or "read <id>" to view a post.');
+        break;
+
+      case 'news':
+        setActiveProfile(null);
+        setActiveTopic(null);
+        setActiveNews(null);
+        setIsEditingProfile(false);
+        setProfileDraft(null);
+        setForumMode(false);
+        setForumPosts([]);
+        setForumPage(1);
+        setNewsMode(true);
+        setNewsPosts(newsArticles);
+        setNewsPage(1);
+        addToHistory(cmd, 'Entering news mode. Use "page <n>" to navigate or "read news <id>" to view an article.');
         break;
 
       case 'search':
@@ -540,19 +641,29 @@ const TerminalForum = () => {
         break;
 
       case 'page':
-        if (!forumMode) {
-          addToHistory(cmd, 'Page command is only available in forum mode', true);
-          isError = true;
-          break;
-        }
-        const pageNum = parseInt(args[0]);
-        const totalPages = Math.max(1, Math.ceil(forumPosts.length / 10));
-        if (!pageNum || pageNum < 1 || pageNum > totalPages) {
-          addToHistory(cmd, `Invalid page number. Enter a number between 1 and ${totalPages}`, true);
-          isError = true;
+        if (forumMode) {
+          const pageNum = parseInt(args[0]);
+          const totalPages = Math.max(1, Math.ceil(forumPosts.length / 10));
+          if (!pageNum || pageNum < 1 || pageNum > totalPages) {
+            addToHistory(cmd, `Invalid page number. Enter a number between 1 and ${totalPages}`, true);
+            isError = true;
+          } else {
+            setForumPage(pageNum);
+            addToHistory(cmd, `Switched to page ${pageNum}`);
+          }
+        } else if (newsMode) {
+          const pageNum = parseInt(args[0]);
+          const totalPages = Math.max(1, Math.ceil(newsPosts.length / 10));
+          if (!pageNum || pageNum < 1 || pageNum > totalPages) {
+            addToHistory(cmd, `Invalid page number. Enter a number between 1 and ${totalPages}`, true);
+            isError = true;
+          } else {
+            setNewsPage(pageNum);
+            addToHistory(cmd, `Switched to page ${pageNum}`);
+          }
         } else {
-          setForumPage(pageNum);
-          addToHistory(cmd, `Switched to page ${pageNum}`);
+          addToHistory(cmd, 'Page command is only available in forum or news mode', true);
+          isError = true;
         }
         break;
 
@@ -565,22 +676,44 @@ const TerminalForum = () => {
 
       case 'read':
         if (!args[0]) {
-          addToHistory(cmd, 'Usage: read [topic_id]', true);
+          addToHistory(cmd, 'Usage: read [topic_id] or read news [id]', true);
           isError = true;
           break;
         }
-        const topicId = parseInt(args[0]);
-        const topic = topics.find(t => t.id === topicId);
-        if (topic) {
-          setActiveProfile(null);
-          setActiveTopic(topic);
-          setIsEditingProfile(false);
-          setProfileDraft(null);
-          addToHistory(cmd, `Opening topic #${topicId} in reader pane...`);
+        if (args[0] === 'news') {
+          const articleId = parseInt(args[1]);
+          if (!articleId) {
+            addToHistory(cmd, 'Usage: read news [id]', true);
+            isError = true;
+            break;
+          }
+          const article = newsArticles.find(n => n.id === articleId);
+          if (article) {
+            setActiveProfile(null);
+            setActiveTopic(null);
+            setActiveNews(article);
+            setIsEditingProfile(false);
+            setProfileDraft(null);
+            addToHistory(cmd, `Opening news #${articleId} in reader pane...`);
+          } else {
+            setActiveNews(null);
+            addToHistory(cmd, `News #${articleId} not found`, true);
+            isError = true;
+          }
         } else {
-          setActiveTopic(null);
-          addToHistory(cmd, `Topic #${topicId} not found`, true);
-          isError = true;
+          const topicId = parseInt(args[0]);
+          const topic = topics.find(t => t.id === topicId);
+          if (topic) {
+            setActiveProfile(null);
+            setActiveTopic(topic);
+            setIsEditingProfile(false);
+            setProfileDraft(null);
+            addToHistory(cmd, `Opening topic #${topicId} in reader pane...`);
+          } else {
+            setActiveTopic(null);
+            addToHistory(cmd, `Topic #${topicId} not found`, true);
+            isError = true;
+          }
         }
         break;
 
@@ -590,21 +723,34 @@ const TerminalForum = () => {
             isError = true;
             break;
           }
-          if (!['creator', 'admin'].includes(currentUser.role)) {
-            addToHistory(cmd, 'Insufficient permissions to create posts', true);
-            isError = true;
-            break;
+          if (args[0] === 'news') {
+            if (!['creator', 'admin'].includes(currentUser.role)) {
+              addToHistory(cmd, 'Insufficient permissions to create news articles', true);
+              isError = true;
+              break;
+            }
+            setActiveTopic(null);
+            setActiveNews(null);
+            setActiveProfile(null);
+            setIsEditingProfile(false);
+            setProfileDraft(null);
+            setIsCreatingNews(true);
+            setNewsTitle('');
+            setNewsContent('');
+            setNewsStep(1);
+            addToHistory(cmd, 'Opening news editor...');
+          } else {
+            setActiveTopic(null);
+            setActiveNews(null);
+            setActiveProfile(null);
+            setIsEditingProfile(false);
+            setProfileDraft(null);
+            setIsCreatingPost(true);
+            setPostTitle('');
+            setPostContent('');
+            setPostStep(1);
+            addToHistory(cmd, 'Opening post editor...');
           }
-
-          setActiveTopic(null);
-          setActiveProfile(null);
-          setIsEditingProfile(false);
-          setProfileDraft(null);
-          setIsCreatingPost(true);
-          setPostTitle('');
-          setPostContent('');
-          setPostStep(1);
-          addToHistory(cmd, 'Opening post editor...');
           break;
         
 
@@ -803,6 +949,9 @@ const TerminalForum = () => {
           } else {
             addToHistory(cmd, 'Side pane closed');
           }
+        } else if (activeNews) {
+          setActiveNews(null);
+          addToHistory(cmd, 'Reader closed');
         } else if (activeProfile) {
           setActiveProfile(null);
           setIsEditingProfile(false);
@@ -813,12 +962,23 @@ const TerminalForum = () => {
           setForumPosts([]);
           setForumPage(1);
           addToHistory(cmd, 'Forum closed');
+        } else if (newsMode) {
+          setNewsMode(false);
+          setNewsPosts([]);
+          setNewsPage(1);
+          addToHistory(cmd, 'News closed');
         } else if (isCreatingPost) {
           setIsCreatingPost(false);
           setPostTitle('');
           setPostContent('');
           setPostStep(1);
           addToHistory(cmd, 'Post creation cancelled');
+        } else if (isCreatingNews) {
+          setIsCreatingNews(false);
+          setNewsTitle('');
+          setNewsContent('');
+          setNewsStep(1);
+          addToHistory(cmd, 'Article creation cancelled');
         } else {
           addToHistory(cmd, 'No pane is currently open');
         }
@@ -862,8 +1022,10 @@ const TerminalForum = () => {
 
   const paginatedForumPosts = forumPosts.slice((forumPage - 1) * 10, forumPage * 10);
   const forumTotalPages = Math.max(1, Math.ceil(forumPosts.length / 10));
+  const paginatedNewsPosts = newsPosts.slice((newsPage - 1) * 10, newsPage * 10);
+  const newsTotalPages = Math.max(1, Math.ceil(newsPosts.length / 10));
 
-  const isPaneOpen = Boolean(activeTopic || activeProfile || forumMode || isCreatingPost);
+  const isPaneOpen = Boolean(activeTopic || activeNews || activeProfile || forumMode || newsMode || isCreatingPost || isCreatingNews);
 
   if (!bootComplete) {
     return (
@@ -921,7 +1083,7 @@ const TerminalForum = () => {
       </div>
 
       {/* Side Pane */}
-      {(activeTopic || activeProfile || forumMode || isCreatingPost) && (
+      {(activeTopic || activeNews || activeProfile || forumMode || newsMode || isCreatingPost || isCreatingNews) && (
         <div className="w-1/2 border-l border-gray-600 flex flex-col" onClick={e => e.stopPropagation()}>
           {/* Side Pane Header */}
           <div className={`${theme.bg} border-b border-gray-600 p-2`}>
@@ -929,13 +1091,19 @@ const TerminalForum = () => {
               <div className={`${theme.accent} text-sm font-bold`}>
               {activeTopic
                   ? '┌─[ ARTICLE READER ]─────────────────────────┐'
-                  : activeProfile
-                    ? (isEditingProfile
-                        ? '┌─[ EDIT PROFILE ]──────────────────────────┐'
-                        : '┌─[ USER PROFILE ]──────────────────────────┐')
-                        : isCreatingPost
+                  : activeNews
+                    ? '┌─[ NEWS ARTICLE ]─────────────────────────┐'
+                    : activeProfile
+                      ? (isEditingProfile
+                          ? '┌─[ EDIT PROFILE ]──────────────────────────┐'
+                          : '┌─[ USER PROFILE ]──────────────────────────┐')
+                      : isCreatingPost
                         ? '┌─[ NEW POST ]────────────────────────────┐'
-                        : '┌─[ FORUM ]──────────────────────────────────┐'}
+                        : isCreatingNews
+                          ? '┌─[ NEW ARTICLE ]────────────────────────┐'
+                          : newsMode
+                            ? '┌─[ NEWS ]──────────────────────────────────┐'
+                            : '┌─[ FORUM ]──────────────────────────────────┐'}
               </div>
             </div>
           </div>
@@ -960,6 +1128,27 @@ const TerminalForum = () => {
                 <div className={`${theme.primary} text-sm leading-relaxed`}>
                   <pre className="whitespace-pre-wrap font-mono">
                     {activeTopic.content}
+                  </pre>
+                </div>
+              </>
+            ) : activeNews ? (
+              <>
+                <div className={`${theme.accent} text-lg mb-2 border-b border-gray-700 pb-2`}>
+                  News #{activeNews.id}: {activeNews.title}
+                </div>
+
+                <div className="mb-4 space-y-1">
+                  <div className={`${theme.secondary} text-sm`}>
+                    <span className={theme.accent}>Author:</span> {activeNews.author}
+                  </div>
+                  <div className={`${theme.secondary} text-sm`}>
+                    <span className={theme.accent}>Posted:</span> {activeNews.timestamp}
+                  </div>
+                </div>
+
+                <div className={`${theme.primary} text-sm leading-relaxed`}>
+                  <pre className="whitespace-pre-wrap font-mono">
+                    {activeNews.content}
                   </pre>
                 </div>
               </>
@@ -1037,7 +1226,43 @@ const TerminalForum = () => {
                     </div>
                   )}
                 </>
-              ) : (
+              ) : isCreatingNews ? (
+                <>
+                  {newsStep === 1 ? (
+                    <input
+                      ref={newsTitleRef}
+                      type="text"
+                      value={newsTitle}
+                      onChange={e => setNewsTitle(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && newsTitle.trim()) {
+                          e.preventDefault();
+                          setNewsStep(2);
+                        }
+                      }}
+                      placeholder="Enter your article title..."
+                      className={`w-full bg-transparent border border-gray-700 p-2 text-sm outline-none ${theme.primary}`}
+                    />
+                  ) : (
+                    <div className="flex flex-col h-full">
+                      <div className={`${theme.accent} text-lg mb-2 border-b border-gray-700 pb-2`}>{newsTitle}</div>
+                      <textarea
+                        ref={newsContentRef}
+                        value={newsContent}
+                        onChange={e => setNewsContent(e.target.value)}
+                        onKeyDown={async e => {
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            await submitNews();
+                          }
+                        }}
+                        placeholder="Start writing your article..."
+                        className={`flex-1 bg-transparent border border-gray-700 p-2 text-sm outline-none resize-none ${theme.primary}`}
+                      />
+                    </div>
+                  )}
+                </>
+              ) : forumMode ? (
                 <>
                   <div className={`${theme.secondary} text-xs mb-2`}>
                     Page {forumPage} of {forumTotalPages}
@@ -1061,7 +1286,31 @@ const TerminalForum = () => {
                     <div className={`${theme.secondary} text-sm mt-2`}>No posts found.</div>
                   )}
                 </>
-            )}
+              ) : newsMode ? (
+                <>
+                  <div className={`${theme.secondary} text-xs mb-2`}>
+                    Page {newsPage} of {newsTotalPages}
+                  </div>
+                  <div className={`grid grid-cols-[40px_auto_100px_150px] gap-2 text-sm ${theme.accent} border-b border-gray-700 pb-1`}>
+                    <div>ID</div>
+                    <div>Title</div>
+                    <div>Author</div>
+                    <div>Date</div>
+                  </div>
+                  {paginatedNewsPosts.length > 0 ? (
+                    paginatedNewsPosts.map(post => (
+                      <div key={post.id} className={`grid grid-cols-[40px_auto_100px_150px] gap-2 text-sm border-b border-gray-700 py-1`}>
+                        <div className={theme.secondary}>{post.id}</div>
+                        <div className={`${theme.primary} truncate`}>{post.title}</div>
+                        <div className={`${theme.secondary} truncate`}>{post.author}</div>
+                        <div className={theme.secondary}>{post.timestamp}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className={`${theme.secondary} text-sm mt-2`}>No articles found.</div>
+                  )}
+                </>
+              ) : null}
           </div>
           
           {/* Side Pane Footer */}
@@ -1069,11 +1318,19 @@ const TerminalForum = () => {
             <div className={`${theme.secondary} text-xs text-center`}>
             {activeTopic
                 ? 'Type "close" to close reader pane'
-                : activeProfile
-                  ? (isEditingProfile ? 'Type "save" to save changes or "close" to cancel' : 'Type "close" to close profile pane')
-                  : isCreatingPost
-                    ? 'Press Ctrl+Enter to submit or type "close" to cancel'
-                    : 'Use "search <text>" to filter or "page <n>" to navigate. Type "close" to exit forum'}
+                : activeNews
+                  ? 'Type "close" to close reader pane'
+                  : activeProfile
+                    ? (isEditingProfile ? 'Type "save" to save changes or "close" to cancel' : 'Type "close" to close profile pane')
+                    : isCreatingPost
+                      ? 'Press Ctrl+Enter to submit or type "close" to cancel'
+                      : isCreatingNews
+                        ? 'Press Ctrl+Enter to submit or type "close" to cancel'
+                        : forumMode
+                          ? 'Use "search <text>" to filter or "page <n>" to navigate. Type "close" to exit forum'
+                          : newsMode
+                            ? 'Use "page <n>" to navigate. Type "close" to exit news'
+                            : ''}
             </div>
             <div className={`${theme.accent} text-sm text-center`}>
               └───────────────────────────────────────────┘
