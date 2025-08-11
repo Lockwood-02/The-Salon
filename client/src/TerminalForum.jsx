@@ -404,8 +404,9 @@ const TerminalForum = () => {
 
     switch (command) {
       case 'help':
+        const adminHelp = currentUser?.role === 'admin' ? '  admin         - Admin tools\n' : '';
         if (args[0] === '-a') {
-          addToHistory(cmd, 
+          addToHistory(cmd,
           'Available Commands:\n' +
           '  help          - Show this help message\n' +
           '  topics        - List all forum topics\n' +
@@ -418,6 +419,7 @@ const TerminalForum = () => {
           '  register      - Register to the system\n' +
           '  login         - Login to the system\n' +
           '  logout        - Logout from the system\n' +
+          adminHelp +
           '  whoami        - Show current user\n' +
           '  sound [on|off] - Toggle sound effects\n' +
           '  color [theme]  - Change terminal color theme\n' +
@@ -588,7 +590,12 @@ const TerminalForum = () => {
             isError = true;
             break;
           }
-        
+          if (!['creator', 'admin'].includes(currentUser.role)) {
+            addToHistory(cmd, 'Insufficient permissions to create posts', true);
+            isError = true;
+            break;
+          }
+
           setActiveTopic(null);
           setActiveProfile(null);
           setIsEditingProfile(false);
@@ -763,17 +770,26 @@ const TerminalForum = () => {
               setPostTitle('');
               setPostContent('');
               setPostStep(1);
-            } 
+            }
             break;
           } else {
             addToHistory(cmd, 'You are not logged in', true);
           }
           break;
-        
 
-          case 'whoami':
-            addToHistory(cmd, currentUser ? `Current user: ${currentUser.display_name || currentUser.username}` : 'Not logged in');
-            break;
+        case 'admin':
+          if (!currentUser || currentUser.role !== 'admin') {
+            addToHistory(cmd, 'Admin access only', true);
+            isError = true;
+          } else {
+            addToHistory(cmd, 'Opening admin panel...');
+            navigate('/admin');
+          }
+          break;
+
+        case 'whoami':
+          addToHistory(cmd, currentUser ? `Current user: ${currentUser.display_name || currentUser.username}` : 'Not logged in');
+          break;
 
       case 'clear':
         setHistory([]);
