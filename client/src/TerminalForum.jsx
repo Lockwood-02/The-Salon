@@ -1037,6 +1037,14 @@ const TerminalForum = () => {
 
   const isPaneOpen = Boolean(activeTopic || activeNews || activeProfile || forumMode || newsMode || isCreatingPost || isCreatingNews);
 
+  const headerTitle =
+  activeTopic ? 'ARTICLE READER' :
+  activeNews ? 'NEWS ARTICLE' :
+  activeProfile ? (isEditingProfile ? 'EDIT PROFILE' : 'USER PROFILE') :
+  isCreatingPost ? 'NEW POST' :
+  isCreatingNews ? 'NEW ARTICLE' :
+  newsMode ? 'NEWS' : 'FORUM';
+
   if (!bootComplete) {
     return (
       <div className={`h-screen ${theme.bg} ${theme.primary} font-mono p-4 overflow-hidden`}>
@@ -1097,24 +1105,15 @@ const TerminalForum = () => {
         <div className="w-1/2 border-l border-gray-600 flex flex-col" onClick={e => e.stopPropagation()}>
           {/* Side Pane Header */}
           <div className={`${theme.bg} border-b border-gray-600 p-2`}>
-            <div className="flex items-center justify-between">
-              <div className={`${theme.accent} text-sm font-bold`}>
-              {activeTopic
-                  ? '┌─[ ARTICLE READER ]─────────────────────────┐'
-                  : activeNews
-                    ? '┌─[ NEWS ARTICLE ]─────────────────────────┐'
-                    : activeProfile
-                      ? (isEditingProfile
-                          ? '┌─[ EDIT PROFILE ]──────────────────────────┐'
-                          : '┌─[ USER PROFILE ]──────────────────────────┐')
-                      : isCreatingPost
-                        ? '┌─[ NEW POST ]────────────────────────────┐'
-                        : isCreatingNews
-                          ? '┌─[ NEW ARTICLE ]────────────────────────┐'
-                          : newsMode
-                            ? '┌─[ NEWS ]──────────────────────────────────┐'
-                            : '┌─[ FORUM ]──────────────────────────────────┐'}
-              </div>
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-gray-700" />
+              <h2
+                className={`${theme.accent} uppercase tracking-wider
+                            text-sm sm:text-base md:text-lg whitespace-nowrap overflow-hidden text-ellipsis font-mono`}
+              >
+                {headerTitle}
+              </h2>
+              <span className="h-px flex-1 bg-gray-700" />
             </div>
           </div>
           
