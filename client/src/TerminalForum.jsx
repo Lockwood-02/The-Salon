@@ -590,11 +590,13 @@ const TerminalForum = () => {
             isError = true;
             break;
           }
-          if (!['creator', 'admin'].includes(currentUser.role)) {
-            addToHistory(cmd, 'Insufficient permissions to create posts', true);
-            isError = true;
-            break;
-          }
+
+          // Post require permissions
+          // if (!['creator', 'admin'].includes(currentUser.role)) {
+          //   addToHistory(cmd, 'Insufficient permissions to create posts', true);
+          //   isError = true;
+          //   break;
+          // }
 
           setActiveTopic(null);
           setActiveProfile(null);

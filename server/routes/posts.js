@@ -29,9 +29,10 @@ router.post('/', auth, async (req, res) => {
     return res.status(400).json({ error: 'Title and content are required' });
   }
 
-  if (!['creator', 'admin'].includes(req.userRole)) {
-    return res.status(403).json({ error: 'Insufficient permissions' });
-  }
+  // Post require permissions
+  // if (!['creator', 'admin'].includes(req.userRole)) {
+  //   return res.status(403).json({ error: 'Insufficient permissions' });
+  // }
 
   try {
     // we still look up username for the display snapshot
