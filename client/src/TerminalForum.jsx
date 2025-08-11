@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import TypingGame from './TypingGame';
 
 // Custom sound hook using Web Audio API
 const useTerminalSounds = () => {
@@ -126,6 +127,7 @@ const TerminalForum = () => {
   const [postTitle, setPostTitle] = useState('');
   const [postContent, setPostContent] = useState('');
   const [postStep, setPostStep] = useState(1);
+  const [activeGame, setActiveGame] = useState(null);
   const postTitleRef = useRef(null);
   const postContentRef = useRef(null);
   const inputRef = useRef(null);
@@ -328,7 +330,7 @@ const TerminalForum = () => {
   useEffect(() => {
     const handleEsc = (e) => {
       if (e.key === 'Escape') {
-        if (activeTopic || activeProfile || forumMode || isCreatingPost) {
+        if (activeTopic || activeProfile || forumMode || isCreatingPost || activeGame) {
           setActiveTopic(null);
           setActiveProfile(null);
           setIsEditingProfile(false);
@@ -340,6 +342,7 @@ const TerminalForum = () => {
           setPostTitle('');
           setPostContent('');
           setPostStep(1);
+          setActiveGame(null);
           addToHistory('esc', 'Closed active pane via Esc key');
           inputRef.current?.focus();
         }
@@ -348,7 +351,7 @@ const TerminalForum = () => {
   
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [activeTopic, activeProfile, forumMode, isCreatingPost]);
+  }, [activeTopic, activeProfile, forumMode, isCreatingPost, activeGame]);
 
   const addToHistory = (command, output, isError = false) => {
     setHistory(prev => [...prev, { command, output, isError, timestamp: new Date().toLocaleTimeString() }]);
@@ -419,6 +422,7 @@ const TerminalForum = () => {
           '  login         - Login to the system\n' +
           '  logout        - Logout from the system\n' +
           '  whoami        - Show current user\n' +
+          '  type          - Start typing challenge\n' +
           '  sound [on|off] - Toggle sound effects\n' +
           '  color [theme]  - Change terminal color theme\n' +
           '  themes        - List available color themes\n' +
@@ -506,6 +510,17 @@ const TerminalForum = () => {
           .map(([key, theme]) => `  ${key.padEnd(8)} - ${theme.name}`)
           .join('\n');
         addToHistory(cmd, `Available Color Themes:\n${themeList}\n\nUsage: color [theme_name]`);
+        break;
+
+      case 'type':
+        setActiveProfile(null);
+        setActiveTopic(null);
+        setIsEditingProfile(false);
+        setProfileDraft(null);
+        setForumMode(false);
+        setIsCreatingPost(false);
+        setActiveGame('typing');
+        addToHistory(cmd, 'Launching typing challenge');
         break;
 
       case 'forum':
@@ -803,6 +818,9 @@ const TerminalForum = () => {
           setPostContent('');
           setPostStep(1);
           addToHistory(cmd, 'Post creation cancelled');
+        } else if (activeGame) {
+          setActiveGame(null);
+          addToHistory(cmd, 'Game closed');
         } else {
           addToHistory(cmd, 'No pane is currently open');
         }
@@ -847,7 +865,7 @@ const TerminalForum = () => {
   const paginatedForumPosts = forumPosts.slice((forumPage - 1) * 10, forumPage * 10);
   const forumTotalPages = Math.max(1, Math.ceil(forumPosts.length / 10));
 
-  const isPaneOpen = Boolean(activeTopic || activeProfile || forumMode || isCreatingPost);
+  const isPaneOpen = Boolean(activeTopic || activeProfile || forumMode || isCreatingPost || activeGame);
 
   if (!bootComplete) {
     return (
@@ -905,7 +923,7 @@ const TerminalForum = () => {
       </div>
 
       {/* Side Pane */}
-      {(activeTopic || activeProfile || forumMode || isCreatingPost) && (
+      {(activeTopic || activeProfile || forumMode || isCreatingPost || activeGame) && (
         <div className="w-1/2 border-l border-gray-600 flex flex-col" onClick={e => e.stopPropagation()}>
           {/* Side Pane Header */}
           <div className={`${theme.bg} border-b border-gray-600 p-2`}>
@@ -917,8 +935,10 @@ const TerminalForum = () => {
                     ? (isEditingProfile
                         ? '┌─[ EDIT PROFILE ]──────────────────────────┐'
                         : '┌─[ USER PROFILE ]──────────────────────────┐')
-                        : isCreatingPost
-                        ? '┌─[ NEW POST ]────────────────────────────┐'
+                    : isCreatingPost
+                      ? '┌─[ NEW POST ]────────────────────────────┐'
+                      : activeGame
+                        ? '┌─[ TYPING CHALLENGE ]────────────────────┐'
                         : '┌─[ FORUM ]──────────────────────────────────┐'}
               </div>
             </div>
@@ -1021,6 +1041,8 @@ const TerminalForum = () => {
                     </div>
                   )}
                 </>
+              ) : activeGame ? (
+                <TypingGame theme={theme} />
               ) : (
                 <>
                   <div className={`${theme.secondary} text-xs mb-2`}>
@@ -1057,7 +1079,9 @@ const TerminalForum = () => {
                   ? (isEditingProfile ? 'Type "save" to save changes or "close" to cancel' : 'Type "close" to close profile pane')
                   : isCreatingPost
                     ? 'Press Ctrl+Enter to submit or type "close" to cancel'
-                    : 'Use "search <text>" to filter or "page <n>" to navigate. Type "close" to exit forum'}
+                    : activeGame
+                      ? 'Type "close" to exit game or play again'
+                      : 'Use "search <text>" to filter or "page <n>" to navigate. Type "close" to exit forum'}
             </div>
             <div className={`${theme.accent} text-sm text-center`}>
               └───────────────────────────────────────────┘
