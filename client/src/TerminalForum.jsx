@@ -126,8 +126,6 @@ const TerminalForum = () => {
   const [postTitle, setPostTitle] = useState('');
   const [postContent, setPostContent] = useState('');
   const [postStep, setPostStep] = useState(1);
-  const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState('');
   const postTitleRef = useRef(null);
   const postContentRef = useRef(null);
   const inputRef = useRef(null);
@@ -270,29 +268,6 @@ const TerminalForum = () => {
   }, []);
 
   useEffect(() => {
-    if (activeTopic) {
-      const loadComments = async () => {
-        try {
-          const res = await axios.get(`http://localhost:4000/api/posts/${activeTopic.id}/comments`);
-          const formatted = res.data.map(c => ({
-            id: c.id,
-            author: c.author,
-            comment_text: c.comment_text,
-            timestamp: new Date(c.timestamp).toLocaleString(),
-          }));
-          setComments(formatted);
-        } catch (err) {
-          console.error('Failed to load comments', err);
-        }
-      };
-      loadComments();
-    } else {
-      setComments([]);
-      setNewComment('');
-    }
-  }, [activeTopic]);
-
-  useEffect(() => {
     let i = 0;
     let isCancelled = false;
 
@@ -355,8 +330,6 @@ const TerminalForum = () => {
       if (e.key === 'Escape') {
         if (activeTopic || activeProfile || forumMode || isCreatingPost) {
           setActiveTopic(null);
-          setComments([]);
-          setNewComment('');
           setActiveProfile(null);
           setIsEditingProfile(false);
           setProfileDraft(null);
@@ -411,28 +384,6 @@ const TerminalForum = () => {
       inputRef.current?.focus();
     } catch (err) {
       addToHistory('post', err.response?.data?.error || 'Failed to create post', true);
-    }
-  };
-
-  const submitComment = async () => {
-    if (!newComment.trim() || !activeTopic) return;
-    try {
-      const token = localStorage.getItem('token');
-      const res = await axios.post(
-        `http://localhost:4000/api/posts/${activeTopic.id}/comments`,
-        { comment_text: newComment },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const comment = {
-        id: res.data.id,
-        author: res.data.author,
-        comment_text: res.data.comment_text,
-        timestamp: new Date(res.data.timestamp).toLocaleString(),
-      };
-      setComments(prev => [...prev, comment]);
-      setNewComment('');
-    } catch (err) {
-      addToHistory('comment', err.response?.data?.error || 'Failed to add comment', true);
     }
   };
 
@@ -849,8 +800,6 @@ const TerminalForum = () => {
       case 'close':
         if (activeTopic) {
           setActiveTopic(null);
-          setComments([]);
-          setNewComment('');
           if (forumMode) {
             addToHistory(cmd, 'Reader closed');
           } else {
@@ -1014,41 +963,6 @@ const TerminalForum = () => {
                   <pre className="whitespace-pre-wrap font-mono">
                     {activeTopic.content}
                   </pre>
-                </div>
-
-                <div className="mt-6">
-                  <div className={`${theme.accent} text-lg mb-2 border-b border-gray-700 pb-2`}>Comments</div>
-                  {comments.length > 0 ? (
-                    comments.map(c => (
-                      <div key={c.id} className="mb-4">
-                        <div className={`${theme.secondary} text-xs mb-1`}>
-                          <span className={theme.accent}>{c.author}</span> - {c.timestamp}
-                        </div>
-                        <div className={`${theme.primary} text-sm whitespace-pre-wrap`}>
-                          {c.comment_text}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className={`${theme.secondary} text-sm`}>No comments yet.</div>
-                  )}
-                  {currentUser && (
-                    <div className="mt-4">
-                      <textarea
-                        value={newComment}
-                        onChange={e => setNewComment(e.target.value)}
-                        className={`w-full bg-transparent border border-gray-700 p-2 text-sm outline-none resize-none ${theme.primary}`}
-                        rows={3}
-                        placeholder="Leave a comment..."
-                      />
-                      <button
-                        onClick={submitComment}
-                        className={`${theme.accent} border border-gray-700 px-2 py-1 mt-2 text-xs`}
-                      >
-                        Post Comment
-                      </button>
-                    </div>
-                  )}
                 </div>
               </>
             ) : activeProfile ? (
