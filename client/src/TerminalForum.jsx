@@ -128,6 +128,19 @@ const TerminalForum = () => {
   const [postStep, setPostStep] = useState(1);
   const postTitleRef = useRef(null);
   const postContentRef = useRef(null);
+const [commentsVisible, setCommentsVisible] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [commentPage, setCommentPage] = useState(1);
+  const [commentTotalPages, setCommentTotalPages] = useState(1);
+  const [commentSort, setCommentSort] = useState('newest');
+  const [collapsedComments, setCollapsedComments] = useState(new Set());
+  const [focusedCommentIndex, setFocusedCommentIndex] = useState(0);
+  const [actionCommentId, setActionCommentId] = useState(null);
+  const [isComposingComment, setIsComposingComment] = useState(false);
+  const [composeParentId, setComposeParentId] = useState(null);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [composeText, setComposeText] = useState('');
+  const composeRef = useRef(null);
   const inputRef = useRef(null);
   const terminalRef = useRef(null);
   const navigate = useNavigate();
@@ -387,7 +400,142 @@ const TerminalForum = () => {
     }
   };
 
-  /* Show who you are logged in as upon boot
+  const findCommentById = (id, list = comments) => {
+    for (const c of list) {
+      if (c.id === id) return c;
+      if (c.children) {
+        const found = findCommentById(id, c.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const getVisibleComments = (list = comments, result = []) => {
+    for (const c of list) {
+      result.push(c);
+      if (!collapsedComments.has(c.id) && c.children) {
+        getVisibleComments(c.children, result);
+      }
+    }
+    return result;
+  };
+
+  const fetchComments = async () => {
+    if (!activeTopic) return;
+    try {
+      const res = await axios.get(`http://localhost:4000/api/posts/${activeTopic.id}/comments`, {
+        params: { sort: commentSort, page: commentPage }
+      });
+      setComments(res.data.comments);
+      setCommentTotalPages(res.data.totalPages);
+      setCollapsedComments(new Set());
+      setFocusedCommentIndex(0);
+    } catch (err) {
+      addToHistory('comments', err.response?.data?.error || 'Failed to load comments', true);
+    }
+  };
+
+  const postComment = async (text, parentId = null) => {
+    if (!currentUser) {
+      addToHistory('comment', 'You must be logged in to comment', true);
+      return;
+    }
+    const token = localStorage.getItem('token');
+    await axios.post(`http://localhost:4000/api/posts/${activeTopic.id}/comments`, { body: text, parent_id: parentId }, { headers: { Authorization: `Bearer ${token}` } });
+    await fetchComments();
+  };
+
+  const editComment = async (id, text) => {
+    const token = localStorage.getItem('token');
+    await axios.put(`http://localhost:4000/api/comments/${id}`, { body: text }, { headers: { Authorization: `Bearer ${token}` } });
+    await fetchComments();
+  };
+
+  const deleteComment = async (id) => {
+    const token = localStorage.getItem('token');
+    await axios.delete(`http://localhost:4000/api/comments/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+    await fetchComments();
+  };
+
+  const submitComposeComment = async () => {
+    const text = composeText.trim();
+    if (!text) return;
+    if (editingCommentId) {
+      await editComment(editingCommentId, text);
+    } else {
+      await postComment(text, composeParentId);
+    }
+    setIsComposingComment(false);
+    setComposeText('');
+    setComposeParentId(null);
+    setEditingCommentId(null);
+  };
+
+  useEffect(() => {
+    if (activeTopic && commentsVisible) {
+      fetchComments();
+    }
+  }, [activeTopic, commentsVisible, commentPage, commentSort]);
+
+  useEffect(() => {
+    if (!commentsVisible) return;
+    const handler = (e) => {
+      const visible = getVisibleComments();
+      if (isComposingComment) {
+        if (e.key === 'Escape') {
+          setIsComposingComment(false);
+          setComposeText('');
+          setEditingCommentId(null);
+          setComposeParentId(null);
+        } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          submitComposeComment();
+        }
+        return;
+      }
+      if (actionCommentId) {
+        if (e.key === 'Escape') {
+          setActionCommentId(null);
+        } else if (e.key === 'r') {
+          setActionCommentId(null);
+          setIsComposingComment(true);
+          setComposeParentId(actionCommentId);
+          setTimeout(() => composeRef.current?.focus(), 0);
+        } else if (e.key === 'e') {
+          const c = findCommentById(actionCommentId);
+          if (c) {
+            setActionCommentId(null);
+            setIsComposingComment(true);
+            setEditingCommentId(actionCommentId);
+            setComposeText(c.body);
+            setTimeout(() => composeRef.current?.focus(), 0);
+          }
+        } else if (e.key === 'd') {
+          deleteComment(actionCommentId);
+          setActionCommentId(null);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        setCommentsVisible(false);
+        return;
+      }
+      if (e.key === 'j' || e.key === 'ArrowDown') {
+        setFocusedCommentIndex(i => Math.min(i + 1, Math.max(visible.length - 1, 0)));
+      } else if (e.key === 'k' || e.key === 'ArrowUp') {
+        setFocusedCommentIndex(i => Math.max(i - 1, 0));
+      } else if (e.key === 'Enter') {
+        const c = visible[focusedCommentIndex];
+        if (c) setActionCommentId(c.id);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [commentsVisible, actionCommentId, isComposingComment, focusedCommentIndex, comments]);
+
+  /* Show who you are logged in as upon boot'
+'
+
   useEffect(() => {
     if (currentUser) {
       addToHistory('system', `Logged in as ${currentUser.display_name || currentUser.username}`);
@@ -397,9 +545,9 @@ const TerminalForum = () => {
   
 
   const executeCommand = async (cmd) => {
-    const parts = cmd.trim().split(/\s+/);
-    const command = parts[0]?.toLowerCase();
-    const args = parts.slice(1);
+    const tokens = cmd.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
+    const command = tokens[0]?.toLowerCase();
+    const args = tokens.slice(1).map(t => t.replace(/^"|"$/g, ''));
     let isError = false;
 
     switch (command) {
@@ -589,6 +737,150 @@ const TerminalForum = () => {
             addToHistory(cmd, 'You must be logged in to post. Use "login"', true);
             isError = true;
             break;
+      case 'comments':
+        if (!activeTopic) {
+          addToHistory(cmd, 'No article open', true);
+          isError = true;
+          break;
+        }
+        setCommentsVisible(prev => !prev);
+        if (!commentsVisible) setCommentPage(1);
+        addToHistory(cmd, commentsVisible ? 'Comments hidden' : 'Comments visible');
+        break;
+
+      case 'comment':
+        if (!activeTopic) {
+          addToHistory(cmd, 'Open an article first', true);
+          isError = true;
+          break;
+        }
+        if (args.length) {
+          await postComment(args.join(' '));
+          addToHistory(cmd, 'Comment posted');
+        } else {
+          setIsComposingComment(true);
+          setComposeParentId(null);
+          setEditingCommentId(null);
+          setTimeout(() => composeRef.current?.focus(), 0);
+          addToHistory(cmd, 'Entering compose mode...');
+        }
+        break;
+
+      case 'reply':
+        if (!activeTopic) {
+          addToHistory(cmd, 'Open an article first', true);
+          isError = true;
+          break;
+        }
+        const replyId = parseInt(args[0]);
+        if (!replyId) {
+          addToHistory(cmd, 'Usage: reply <comment_id> "text"', true);
+          isError = true;
+          break;
+        }
+        if (args[1]) {
+          await postComment(args.slice(1).join(' '), replyId);
+          addToHistory(cmd, 'Reply posted');
+        } else {
+          setIsComposingComment(true);
+          setComposeParentId(replyId);
+          setEditingCommentId(null);
+          setTimeout(() => composeRef.current?.focus(), 0);
+          addToHistory(cmd, 'Entering reply compose mode...');
+        }
+        break;
+
+      case 'edit':
+        if (!activeTopic) {
+          addToHistory(cmd, 'Open an article first', true);
+          isError = true;
+          break;
+        }
+        const editId = parseInt(args[0]);
+        if (!editId) {
+          addToHistory(cmd, 'Usage: edit <comment_id> "text"', true);
+          isError = true;
+          break;
+        }
+        if (args[1]) {
+          await editComment(editId, args.slice(1).join(' '));
+          addToHistory(cmd, 'Comment edited');
+        } else {
+          const c = findCommentById(editId);
+          if (c) {
+            setIsComposingComment(true);
+            setEditingCommentId(editId);
+            setComposeText(c.body);
+            setTimeout(() => composeRef.current?.focus(), 0);
+            addToHistory(cmd, 'Editing comment...');
+          } else {
+            addToHistory(cmd, 'Comment not found', true);
+            isError = true;
+          }
+        }
+        break;
+
+      case 'del':
+        if (!activeTopic) {
+          addToHistory(cmd, 'Open an article first', true);
+          isError = true;
+          break;
+        }
+        const delId = parseInt(args[0]);
+        if (!delId) {
+          addToHistory(cmd, 'Usage: del <comment_id>', true);
+          isError = true;
+          break;
+        }
+        await deleteComment(delId);
+        addToHistory(cmd, `Comment ${delId} deleted`);
+        break;
+
+      case 'sort':
+        if (args[0] === 'newest' || args[0] === 'oldest') {
+          setCommentSort(args[0]);
+          setCommentPage(1);
+          addToHistory(cmd, `Sorting comments by ${args[0]}`);
+        } else {
+          addToHistory(cmd, 'Usage: sort newest|oldest', true);
+          isError = true;
+        }
+        break;
+
+      case 'page':
+        const p = parseInt(args[0]);
+        if (!p || p < 1 || p > commentTotalPages) {
+          addToHistory(cmd, `Enter page 1-${commentTotalPages}`, true);
+          isError = true;
+        } else {
+          setCommentPage(p);
+          addToHistory(cmd, `Switched to comment page ${p}`);
+        }
+        break;
+
+      case 'next':
+        setCommentPage(p => Math.min(p + 1, commentTotalPages));
+        addToHistory(cmd, `Switched to comment page ${Math.min(commentPage + 1, commentTotalPages)}`);
+        break;
+
+      case 'prev':
+        setCommentPage(p => Math.max(p - 1, 1));
+        addToHistory(cmd, `Switched to comment page ${Math.max(commentPage - 1, 1)}`);
+        break;
+
+      case 'expand':
+        const exId = parseInt(args[0]);
+        if (exId) {
+          setCollapsedComments(prev => { const s = new Set(prev); s.delete(exId); return s; });
+        }
+        break;
+
+      case 'collapse':
+        const coId = parseInt(args[0]);
+        if (coId) {
+          setCollapsedComments(prev => { const s = new Set(prev); s.add(coId); return s; });
+        }
+        break;
           }
 
           // Post require permissions
@@ -864,6 +1156,26 @@ const TerminalForum = () => {
 
   const paginatedForumPosts = forumPosts.slice((forumPage - 1) * 10, forumPage * 10);
   const forumTotalPages = Math.max(1, Math.ceil(forumPosts.length / 10));
+const visibleComments = getVisibleComments();
+  const focusedCommentId = visibleComments[focusedCommentIndex]?.id;
+
+  const renderComments = (list, depth = 0) => {
+    return list.map(c => {
+      const isFocused = c.id === focusedCommentId;
+      const collapsed = collapsedComments.has(c.id);
+      return (
+        <div key={c.id} style={{ marginLeft: depth * 16 }} className={`mb-2 ${isFocused ? 'bg-gray-800' : ''}`}>
+          <div className="text-xs flex justify-between">
+            <span>[{c.id}] {c.author}</span>
+            <span>{new Date(c.created_at).toLocaleString()}</span>
+          </div>
+          <div className="text-sm whitespace-pre-wrap">{c.body}</div>
+          {c.children && c.children.length > 0 && !collapsed && renderComments(c.children, depth + 1)}
+        </div>
+      );
+    });
+  };
+
 
   const isPaneOpen = Boolean(activeTopic || activeProfile || forumMode || isCreatingPost);
 
@@ -965,6 +1277,22 @@ const TerminalForum = () => {
                   </pre>
                 </div>
               </>
+
+                {commentsVisible && (
+                  <div className="mt-4">
+                    <div className={`${theme.accent} text-sm mb-2`}>Comments (page {commentPage}/{commentTotalPages})</div>
+                    {renderComments(comments)}
+                    {isComposingComment && (
+                      <textarea
+                        ref={composeRef}
+                        value={composeText}
+                        onChange={e => setComposeText(e.target.value)}
+                        placeholder="Type your comment..."
+                        className={`w-full bg-transparent border border-gray-700 p-2 text-sm outline-none resize-none ${theme.primary}`}
+                      />
+                    )}
+                  </div>
+                )}
             ) : activeProfile ? (
               <>
                 <div className={`${theme.accent} text-lg mb-2 border-b border-gray-700 pb-2`}>
